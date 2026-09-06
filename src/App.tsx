@@ -8,6 +8,7 @@ import Experts from '@/pages/Experts';
 import Designs from '@/pages/Designs';
 import Outils from '@/pages/Outils';
 import Regles from '@/pages/Regles';
+import Notes from '@/pages/Notes';
 import MonEspace from '@/pages/MonEspace';
 import Admin from '@/pages/Admin';
 
@@ -74,6 +75,7 @@ function App() {
         <Route path="/designs" element={<Designs />} />
         <Route path="/outils" element={<Outils />} />
         <Route path="/regles" element={<Regles />} />
+        <Route path="/notes" element={<Notes />} />
         <Route path="/mon-espace" element={<MonEspace />} />
         <Route path="/admin" element={<Admin />} />
       </Routes>

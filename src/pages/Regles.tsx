@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, BookOpen } from 'lucide-react';
 import Logo from '@/components/Logo';
 import { useReglesText } from '@/lib/hooks';
 
@@ -10,7 +10,7 @@ const defaultRules = [
   { title: '4. Mon Espace', text: 'Chaque expert peut gérer son profil depuis "Mon Espace" en utilisant son numéro WhatsApp. Il peut modifier sa photo, ses informations et ses travaux.' },
   { title: '5. Administration', text: 'L\'administrateur gère les demandes, les experts approuvés, les paramètres et les mises à jour de l\'application.' },
   { title: '6. Utilisation des outils', text: 'Les outils (calculatrice, jeux, agenda, coffre secret) sont disponibles gratuitement pour tous les utilisateurs.' },
-  { title: '7. Modèles et designs', text: 'Tous les modèles sont gratuits. Vous pouvez les modifier et les exporter en PDF.' },
+  { title: '7. Modèles et designs', text: 'Tous les modèles sont gratuits. Vous pouvez les modifier : Cliquez sur "Modifier", insérez vos informations, cliquez sur "Télécharger", une page va s\'ouvrir, appuyez longuement sur l\'image et "Enregistrer l\'image" dans votre galerie.' },
   { title: '8. Respect et professionnalisme', text: 'Tout utilisateur s\'engage à utiliser la plateforme de manière professionnelle et respectueuse.' },
 ];
 
@@ -49,6 +49,14 @@ export default function Regles() {
           <h2 className="text-2xl font-black">Mon Métier</h2>
         </div>
 
+        <button
+          onClick={() => navigate('/notes')}
+          className="w-full bg-gradient-to-r from-[#F97316] to-amber-500 text-white font-bold text-[15px] py-4 px-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform"
+        >
+          <BookOpen size={20} />
+          Notes / Formations Techniciens
+        </button>
+
         <div className="bg-white/10 rounded-2xl p-6 space-y-4">
           <h3 className="font-bold text-lg text-[#F97316]">Règles de la plateforme</h3>
 
@@ -73,7 +81,7 @@ export default function Regles() {
 
         <div className="text-center text-xs text-white/40 pt-4">
           <p>Mon Métier - Connecter Clients et techniciens ou Experts</p>
-          <p className="mt-1">Version 1.0.17</p>
+          <p className="mt-1">Version 1.0.25</p>
         </div>
       </div>
     </div>
