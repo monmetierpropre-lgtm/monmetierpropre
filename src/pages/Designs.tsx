@@ -746,11 +746,42 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
     return 'CV';
   };
 
+  const triggerBlobDownload = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.rel = 'noopener';
+    a.style.display = 'block';
+    a.style.position = 'fixed';
+    a.style.left = '0';
+    a.style.top = '0';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    showToast(`${filename} telecharge`, 'success');
+  };
+
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+
+  const generateUniqueName = (ext: string) => {
+    const t = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const raw = values.prenom
+      ? `${values.prenom}_${values.nom}`
+      : (values.nom || values.titre || values.expediteur || 'MonDocument');
+    const n = raw.trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+    return `${getFilePrefix()}_${n}_${t}.${ext}`;
+  };
 
   const capturePreview = async (): Promise<HTMLCanvasElement> => {
     const el = previewRef.current;
     if (!el) throw new Error('Aperçu introuvable');
+
+    // Clean up orphaned html2canvas canvases from previous captures
+    document.querySelectorAll('canvas').forEach((c) => {
+      if (c.style.position === 'absolute' && c.style.left === '-9999px') c.remove();
+    });
 
     const scaledParent = el.parentElement;
     const overflowParent = scaledParent?.parentElement;
@@ -770,15 +801,18 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
       overflowParent.style.overflow = 'visible';
     }
 
-    await new Promise((r) => setTimeout(r, 150));
+    await new Promise((r) => setTimeout(r, 200));
+
+    const layout = template.content?.layout;
+    const isCard = layout === 'card';
 
     try {
       const canvas = await html2canvas(el, {
-        scale: 2,
+        scale: isCard ? 3 : 2,
         useCORS: true,
         allowTaint: false,
         backgroundColor: '#ffffff',
-        logging: true,
+        logging: false,
         width: el.scrollWidth,
         height: el.scrollHeight,
         windowWidth: el.scrollWidth,
@@ -804,44 +838,44 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
     setDownloading(true);
     try {
       const canvas = await capturePreview();
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
-      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgData = canvas.toDataURL('image/jpeg', 0.92);
       const layout = template.content?.layout;
-      if (layout === 'card') {
-        pdf.addImage(imgData, 'JPEG', 0, 0, 90, 55, undefined, 'FAST');
-      } else {
-        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
-      }
-      const nomFichier = `${getFilePrefix()}_${getFileName()}.pdf`;
+      const isCard = layout === 'card';
 
-      // Try Web Share API with file (opens native Android share sheet)
+      const pdf = new jsPDF({
+        orientation: isCard ? 'landscape' : 'portrait',
+        unit: 'mm',
+        format: isCard ? [90, 55] : 'a4',
+      });
+      const pdfW = pdf.internal.pageSize.getWidth();
+      const pdfH = pdf.internal.pageSize.getHeight();
+      pdf.addImage(imgData, 'JPEG', 0, 0, pdfW, pdfH, undefined, 'FAST');
+
+      const nomFichier = generateUniqueName('pdf');
       const pdfBlob = pdf.output('blob');
       const pdfFile = new File([pdfBlob], nomFichier, { type: 'application/pdf' });
+
       if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-        await navigator.share({ files: [pdfFile], title: nomFichier, text: `Mon document ${nomFichier}` });
-        showToast(`${nomFichier} pret a etre partage`, 'success');
+        try {
+          await navigator.share({ files: [pdfFile], title: nomFichier, text: `Mon document ${nomFichier}` });
+          showToast(`${nomFichier} pret a etre partage`, 'success');
+        } catch (shareErr) {
+          if ((shareErr as Error).name === 'AbortError') {
+            triggerBlobDownload(pdfBlob, nomFichier);
+          } else {
+            throw shareErr;
+          }
+        }
       } else {
-        // Fallback: direct download via Blob URL
-        const url = URL.createObjectURL(pdfBlob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = nomFichier;
-        a.rel = 'noopener';
-        a.style.display = 'block';
-        a.style.position = 'fixed';
-        a.style.left = '0';
-        a.style.top = '0';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 5000);
-        showToast(`${nomFichier} telecharge`, 'success');
+        triggerBlobDownload(pdfBlob, nomFichier);
       }
     } catch (e) {
-      const msg = (e as Error).message || String(e);
+      const err = e as Error;
       console.error('Erreur PDF:', e);
-      showToast('Erreur PDF: ' + msg, 'error');
-      alert('Erreur lors de la generation du PDF : ' + msg);
+      if (err.name !== 'AbortError') {
+        showToast('Erreur PDF: ' + (err.message || String(e)), 'error');
+        alert('Erreur lors de la generation du PDF : ' + (err.message || String(e)));
+      }
     } finally {
       setDownloading(false);
     }
@@ -852,28 +886,37 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
     setDownloading(true);
     try {
       const canvas = await capturePreview();
-      const nomFichier = `${getFilePrefix()}_${getFileName()}.png`;
+      const nomFichier = generateUniqueName('png');
 
-      // Try Web Share API with file (opens native Android share sheet)
       const blob = await new Promise<Blob | null>((resolve) =>
         canvas.toBlob(resolve, 'image/png', 1.0)
       );
       if (!blob) throw new Error('Impossible de generer l\'image PNG');
       const pngFile = new File([blob], nomFichier, { type: 'image/png' });
+
       if (navigator.canShare && navigator.canShare({ files: [pngFile] })) {
-        await navigator.share({ files: [pngFile], title: nomFichier, text: `Mon image ${nomFichier}` });
-        showToast(`${nomFichier} pret a etre partage`, 'success');
+        try {
+          await navigator.share({ files: [pngFile], title: nomFichier, text: `Mon image ${nomFichier}` });
+          showToast(`${nomFichier} pret a etre partage`, 'success');
+        } catch (shareErr) {
+          if ((shareErr as Error).name === 'AbortError') {
+            triggerBlobDownload(blob, nomFichier);
+          } else {
+            throw shareErr;
+          }
+        }
       } else {
-        // Fallback: show image overlay for long-press save
         const dataUrl = canvas.toDataURL('image/png');
         setImagePreviewUrl(dataUrl);
         showToast('Image generee - maintenez appuye pour enregistrer', 'success');
       }
     } catch (e) {
-      const msg = (e as Error).message || String(e);
+      const err = e as Error;
       console.error('Erreur PNG:', e);
-      showToast('Erreur PNG: ' + msg, 'error');
-      alert('Erreur lors de la generation du PNG : ' + msg);
+      if (err.name !== 'AbortError') {
+        showToast('Erreur PNG: ' + (err.message || String(e)), 'error');
+        alert('Erreur lors de la generation du PNG : ' + (err.message || String(e)));
+      }
     } finally {
       setDownloading(false);
     }
