@@ -1057,47 +1057,53 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
 
   const [downloading, setDownloading] = useState(false);
 
+  const getFileName = () => {
+    const nom = (values.nom || values.titre || values.expediteur || 'MonCV').trim().replace(/\s+/g, '-').replace(/[^a-zA-Z0-9\-]/g, '');
+    return nom || 'MonCV';
+  };
+
   const handleDownloadPDF = useCallback(async () => {
     const el = previewRef.current;
     if (!el || downloading) return;
-    console.log('PDF: starting download');
+    const nomFichier = `CV-${getFileName()}.pdf`;
     setDownloading(true);
     try {
-      const canvas = await html2canvas(el, { scale: 3, useCORS: true, backgroundColor: '#ffffff' });
-      const imgData = canvas.toDataURL('image/png');
+      const canvas = await html2canvas(el, { scale: 3, useCORS: true, backgroundColor: '#ffffff', logging: false });
+      const imgData = canvas.toDataURL('image/png', 1.0);
       const pdf = new jsPDF('p', 'mm', 'a4');
       const imgWidth = 210;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
-      pdf.save(`${template.title}-${Date.now()}.pdf`);
-      showToast('PDF téléchargé!', 'success');
+      pdf.save(nomFichier);
+      showToast(`${nomFichier} téléchargé!`, 'success');
     } catch (e) {
       console.error('PDF error:', e);
-      showToast('Erreur: ' + (e as Error).message, 'error');
+      showToast('Erreur PDF: ' + (e as Error).message, 'error');
     } finally {
       setDownloading(false);
     }
-  }, [template, downloading]);
+  }, [template, downloading, values]);
 
   const handleDownloadPNG = useCallback(async () => {
     const el = previewRef.current;
     if (!el || downloading) return;
-    console.log('PNG: starting download');
+    const nomFichier = `CV-${getFileName()}.png`;
     setDownloading(true);
     try {
       const canvas = await html2canvas(el, { scale: 3, useCORS: true, backgroundColor: '#ffffff' });
-      const link = document.createElement('a');
-      link.download = `${template.title}-${Date.now()}.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-      showToast('PNG téléchargé!', 'success');
+      const dataUrl = canvas.toDataURL('image/png', 1.0);
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = nomFichier;
+      a.click();
+      showToast(`${nomFichier} téléchargé!`, 'success');
     } catch (e) {
       console.error('PNG error:', e);
-      showToast('Erreur: ' + (e as Error).message, 'error');
+      showToast('Erreur PNG: ' + (e as Error).message, 'error');
     } finally {
       setDownloading(false);
     }
-  }, [template, downloading]);
+  }, [template, downloading, values]);
 
   const inputClass = 'w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-white text-sm placeholder-white/40 focus:outline-none focus:border-[#F97316] transition-colors';
 
