@@ -1127,7 +1127,7 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
   };
 
   return (
-    <div className="fixed inset-0 z-[90] bg-black/80 flex flex-col animate-[fadeIn_0.2s_ease-out]">
+    <div className="fixed inset-0 z-[10000] bg-black/80 flex flex-col animate-[fadeIn_0.2s_ease-out]">
       {/* Header bar */}
       <div className="flex items-center justify-between px-4 py-3 bg-[#0B2E8C] border-b border-white/10 flex-shrink-0">
         <div className="flex items-center gap-2">
@@ -1233,7 +1233,7 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
       </div>
 
       {/* Fixed action buttons */}
-      <div className="flex gap-2 bg-[#0B2E8C] p-3 border-t border-white/10 flex-shrink-0">
+      <div className="flex gap-2 bg-[#0B2E8C] p-3 border-t border-white/10 flex-shrink-0 pb-[calc(12px+env(safe-area-inset-bottom))]">
         <button
           type="button"
           onClick={handleDownloadPDF}
