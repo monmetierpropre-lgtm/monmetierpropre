@@ -746,6 +746,19 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
     return 'CV';
   };
 
+  const triggerBlobDownload = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.rel = 'noopener';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  };
+
   const handleDownloadPDF = useCallback(async () => {
     const el = previewRef.current;
     if (!el || downloading) return;
@@ -763,7 +776,8 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
       } else {
         pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
       }
-      pdf.save(nomFichier);
+      const pdfBlob = pdf.output('blob');
+      triggerBlobDownload(pdfBlob, nomFichier);
       showToast(`${nomFichier} téléchargé!`, 'success');
     } catch (e) {
       showToast('Erreur PDF: ' + (e as Error).message, 'error');
@@ -781,11 +795,11 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
       const canvas = await html2canvas(el, {
         scale: 3, useCORS: true, backgroundColor: '#ffffff', logging: false, windowWidth: 794,
       });
-      const dataUrl = canvas.toDataURL('image/png');
-      const a = document.createElement('a');
-      a.href = dataUrl;
-      a.download = nomFichier;
-      a.click();
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, 'image/png', 0.95)
+      );
+      if (!blob) throw new Error('Impossible de générer l\'image');
+      triggerBlobDownload(blob, nomFichier);
       showToast(`${nomFichier} téléchargé!`, 'success');
     } catch (e) {
       showToast('Erreur PNG: ' + (e as Error).message, 'error');
