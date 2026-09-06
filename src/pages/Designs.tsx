@@ -6,7 +6,6 @@ import {
   User, CheckCircle, Crown, Sparkles, Phone, MapPin, Briefcase, GraduationCap, Award,
   Plus, Trash2, Globe, Linkedin, Palette, Type, Eye, Loader2,
 } from 'lucide-react';
-import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { usePricing } from '@/lib/hooks';
 import type { FilePricing } from '@/lib/supabase';
@@ -809,12 +808,9 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
 
     await new Promise((r) => setTimeout(r, 200));
 
-    const layout = template.content?.layout;
-    const isCard = layout === 'card';
-
     try {
       const canvas = await html2canvas(el, {
-        scale: isCard ? 3 : 2,
+        scale: 3,
         useCORS: true,
         allowTaint: false,
         backgroundColor: '#ffffff',
@@ -844,113 +840,45 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
     setIsDownloading(true);
     try {
       const canvas = await capturePreview();
-      const layout = template.content?.layout;
-      const isCardOrPoster = layout === 'card' || layout === 'poster';
 
-      if (isCardOrPoster) {
-        // CARTE VISITE ET AFFICHE = PNG HAUTE QUALITE
-        const nomFichier = generateUniqueName('png');
-        const blob = await new Promise<Blob | null>((resolve) =>
-          canvas.toBlob(resolve, 'image/png', 1.0)
-        );
-        if (!blob) throw new Error('Impossible de generer l\'image PNG');
+      // TOUS LES DOCUMENTS = PNG HAUTE QUALITE (scale 3)
+      const nomFichier = generateUniqueName('png');
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, 'image/png', 1.0)
+      );
+      if (!blob) throw new Error('Impossible de generer l\'image PNG');
 
-        let downloaded = false;
+      let downloaded = false;
 
-        // METHOD 1: Web Share API (opens native Android share sheet)
-        if (!downloaded) {
-          try {
-            const pngFile = new File([blob], nomFichier, { type: 'image/png' });
-            if (navigator.canShare && navigator.canShare({ files: [pngFile] })) {
-              await navigator.share({ files: [pngFile], title: nomFichier, text: `Mon image ${nomFichier}` });
-              showToast(`${nomFichier} partage`, 'success');
-              downloaded = true;
-            }
-          } catch (shareErr) {
-            if ((shareErr as Error).name === 'AbortError') {
-              setIsDownloading(false);
-              return;
-            }
-            console.log('Share failed, trying Blob download', shareErr);
+      // METHOD 1: Web Share API (opens native Android share sheet)
+      if (!downloaded) {
+        try {
+          const pngFile = new File([blob], nomFichier, { type: 'image/png' });
+          if (navigator.canShare && navigator.canShare({ files: [pngFile] })) {
+            await navigator.share({ files: [pngFile], title: nomFichier, text: `Mon image ${nomFichier}` });
+            showToast(`${nomFichier} partage`, 'success');
+            downloaded = true;
           }
-        }
-
-        // METHOD 2: Blob URL download
-        if (!downloaded) {
-          downloaded = triggerBlobDownload(blob, nomFichier);
-          if (downloaded) showToast(`${nomFichier} telecharge`, 'success');
-        }
-
-        // METHOD 3: Image overlay for long-press save
-        if (!downloaded) {
-          const dataUrl = canvas.toDataURL('image/png');
-          setImagePreviewUrl(dataUrl);
-          showToast('Image generee - maintenez appuye pour enregistrer', 'success');
-        }
-      } else {
-        // CV ET LETTRE = PDF A4
-        const imgData = canvas.toDataURL('image/jpeg', 0.95);
-        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-        const pdfW = pdf.internal.pageSize.getWidth();
-        const pdfH = pdf.internal.pageSize.getHeight();
-        pdf.addImage(imgData, 'JPEG', 0, 0, pdfW, pdfH, undefined, 'FAST');
-
-        const nomFichier = generateUniqueName('pdf');
-        const pdfBlob = pdf.output('blob');
-
-        let downloaded = false;
-
-        // METHOD 1: Web Share API (opens native Android share sheet)
-        if (!downloaded) {
-          try {
-            const pdfFile = new File([pdfBlob], nomFichier, { type: 'application/pdf' });
-            if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-              await navigator.share({ files: [pdfFile], title: nomFichier, text: `Mon document ${nomFichier}` });
-              showToast(`${nomFichier} partage`, 'success');
-              downloaded = true;
-            }
-          } catch (shareErr) {
-            if ((shareErr as Error).name === 'AbortError') {
-              setIsDownloading(false);
-              return;
-            }
-            console.log('Share failed, trying Blob download', shareErr);
+        } catch (shareErr) {
+          if ((shareErr as Error).name === 'AbortError') {
+            setIsDownloading(false);
+            return;
           }
+          console.log('Share failed, trying Blob download', shareErr);
         }
+      }
 
-        // METHOD 2: Blob URL download
-        if (!downloaded) {
-          downloaded = triggerBlobDownload(pdfBlob, nomFichier);
-          if (downloaded) showToast(`${nomFichier} telecharge`, 'success');
-        }
+      // METHOD 2: Blob URL download
+      if (!downloaded) {
+        downloaded = triggerBlobDownload(blob, nomFichier);
+        if (downloaded) showToast(`${nomFichier} telecharge`, 'success');
+      }
 
-        // METHOD 3: Open PDF in new tab via blob URL
-        if (!downloaded) {
-          try {
-            const blobUrl = URL.createObjectURL(pdfBlob);
-            const newWindow = window.open(blobUrl, '_blank');
-            if (newWindow) {
-              showToast('PDF ouvert - enregistre-le depuis le navigateur', 'success');
-              downloaded = true;
-            } else {
-              window.location.href = blobUrl;
-              downloaded = true;
-            }
-          } catch (e3) {
-            console.log('Open tab method failed', e3);
-          }
-        }
-
-        // METHOD 4: DataURI as last resort
-        if (!downloaded) {
-          try {
-            const dataUri = pdf.output('datauristring');
-            window.location.href = dataUri;
-            showToast('PDF ouvert - enregistre-le', 'success');
-          } catch (e4) {
-            throw new Error('Impossible de telecharger le PDF');
-          }
-        }
+      // METHOD 3: Image overlay for long-press save
+      if (!downloaded) {
+        const dataUrl = canvas.toDataURL('image/png');
+        setImagePreviewUrl(dataUrl);
+        showToast('Image generee - maintenez appuye pour enregistrer', 'success');
       }
     } catch (e) {
       const err = e as Error;
