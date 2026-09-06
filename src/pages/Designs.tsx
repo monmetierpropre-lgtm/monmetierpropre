@@ -746,21 +746,27 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
     return 'CV';
   };
 
-  const triggerBlobDownload = (blob: Blob, filename: string) => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.rel = 'noopener';
-    a.style.display = 'block';
-    a.style.position = 'fixed';
-    a.style.left = '0';
-    a.style.top = '0';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-    showToast(`${filename} telecharge`, 'success');
+  const triggerBlobDownload = (blob: Blob, filename: string): boolean => {
+    try {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.rel = 'noopener';
+      a.target = '_blank';
+      a.style.display = 'block';
+      a.style.position = 'fixed';
+      a.style.left = '0';
+      a.style.top = '0';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      return true;
+    } catch (e) {
+      console.log('Blob download failed', e);
+      return false;
+    }
   };
 
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
@@ -849,32 +855,38 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
         );
         if (!blob) throw new Error('Impossible de generer l\'image PNG');
 
-        // METHOD 1: Web Share API
-        try {
-          const pngFile = new File([blob], nomFichier, { type: 'image/png' });
-          if (navigator.canShare && navigator.canShare({ files: [pngFile] })) {
-            await navigator.share({ files: [pngFile], title: nomFichier, text: `Mon image ${nomFichier}` });
-            showToast(`${nomFichier} pret a etre partage`, 'success');
-            return;
-          }
-        } catch (shareErr) {
-          if ((shareErr as Error).name !== 'AbortError') {
+        let downloaded = false;
+
+        // METHOD 1: Web Share API (opens native Android share sheet)
+        if (!downloaded) {
+          try {
+            const pngFile = new File([blob], nomFichier, { type: 'image/png' });
+            if (navigator.canShare && navigator.canShare({ files: [pngFile] })) {
+              await navigator.share({ files: [pngFile], title: nomFichier, text: `Mon image ${nomFichier}` });
+              showToast(`${nomFichier} partage`, 'success');
+              downloaded = true;
+            }
+          } catch (shareErr) {
+            if ((shareErr as Error).name === 'AbortError') {
+              setIsDownloading(false);
+              return;
+            }
             console.log('Share failed, trying Blob download', shareErr);
           }
         }
 
         // METHOD 2: Blob URL download
-        try {
-          triggerBlobDownload(blob, nomFichier);
-          return;
-        } catch (e2) {
-          console.log('Blob download failed, showing image overlay', e2);
+        if (!downloaded) {
+          downloaded = triggerBlobDownload(blob, nomFichier);
+          if (downloaded) showToast(`${nomFichier} telecharge`, 'success');
         }
 
         // METHOD 3: Image overlay for long-press save
-        const dataUrl = canvas.toDataURL('image/png');
-        setImagePreviewUrl(dataUrl);
-        showToast('Image generee - maintenez appuye pour enregistrer', 'success');
+        if (!downloaded) {
+          const dataUrl = canvas.toDataURL('image/png');
+          setImagePreviewUrl(dataUrl);
+          showToast('Image generee - maintenez appuye pour enregistrer', 'success');
+        }
       } else {
         // CV ET LETTRE = PDF A4
         const imgData = canvas.toDataURL('image/jpeg', 0.95);
@@ -886,44 +898,59 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
         const nomFichier = generateUniqueName('pdf');
         const pdfBlob = pdf.output('blob');
 
-        // METHOD 1: Web Share API
-        try {
-          const pdfFile = new File([pdfBlob], nomFichier, { type: 'application/pdf' });
-          if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-            await navigator.share({ files: [pdfFile], title: nomFichier, text: `Mon document ${nomFichier}` });
-            showToast(`${nomFichier} pret a etre partage`, 'success');
-            return;
-          }
-        } catch (shareErr) {
-          if ((shareErr as Error).name !== 'AbortError') {
+        let downloaded = false;
+
+        // METHOD 1: Web Share API (opens native Android share sheet)
+        if (!downloaded) {
+          try {
+            const pdfFile = new File([pdfBlob], nomFichier, { type: 'application/pdf' });
+            if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+              await navigator.share({ files: [pdfFile], title: nomFichier, text: `Mon document ${nomFichier}` });
+              showToast(`${nomFichier} partage`, 'success');
+              downloaded = true;
+            }
+          } catch (shareErr) {
+            if ((shareErr as Error).name === 'AbortError') {
+              setIsDownloading(false);
+              return;
+            }
             console.log('Share failed, trying Blob download', shareErr);
           }
         }
 
         // METHOD 2: Blob URL download
-        try {
-          triggerBlobDownload(pdfBlob, nomFichier);
-          return;
-        } catch (e2) {
-          console.log('Blob download failed, trying DataURI', e2);
+        if (!downloaded) {
+          downloaded = triggerBlobDownload(pdfBlob, nomFichier);
+          if (downloaded) showToast(`${nomFichier} telecharge`, 'success');
         }
 
-        // METHOD 3: DataURI in new tab (last resort)
-        try {
-          const dataUri = pdf.output('datauristring');
-          const newWindow = window.open();
-          if (newWindow) {
-            newWindow.document.write(`<iframe src="${dataUri}" style="width:100%;height:100%;border:0"></iframe>`);
-            showToast('PDF ouvert dans un nouvel onglet - enregistre-le', 'success');
-          } else {
-            window.location.href = dataUri;
+        // METHOD 3: Open PDF in new tab via blob URL
+        if (!downloaded) {
+          try {
+            const blobUrl = URL.createObjectURL(pdfBlob);
+            const newWindow = window.open(blobUrl, '_blank');
+            if (newWindow) {
+              showToast('PDF ouvert - enregistre-le depuis le navigateur', 'success');
+              downloaded = true;
+            } else {
+              window.location.href = blobUrl;
+              downloaded = true;
+            }
+          } catch (e3) {
+            console.log('Open tab method failed', e3);
           }
-          return;
-        } catch (e3) {
-          console.log('DataURI method failed', e3);
         }
 
-        throw new Error('Toutes les methodes de telechargement ont echoue');
+        // METHOD 4: DataURI as last resort
+        if (!downloaded) {
+          try {
+            const dataUri = pdf.output('datauristring');
+            window.location.href = dataUri;
+            showToast('PDF ouvert - enregistre-le', 'success');
+          } catch (e4) {
+            throw new Error('Impossible de telecharger le PDF');
+          }
+        }
       }
     } catch (e) {
       const err = e as Error;
@@ -1369,7 +1396,7 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
           className="w-full h-[48px] text-sm font-bold bg-[#F97316] text-white rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 transition-transform"
         >
           {isDownloading ? <Loader2 size={20} className="animate-spin" /> : <Download size={20} />}
-          {isDownloading ? 'Génération en cours...' : `Télécharger ${template.content?.layout === 'card' || template.content?.layout === 'poster' ? 'PNG' : 'PDF'}`}
+          {isDownloading ? 'Génération en cours...' : 'Télécharger'}
         </button>
       </div>
 
