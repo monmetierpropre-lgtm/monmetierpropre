@@ -1060,17 +1060,20 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
   const handleDownloadPDF = useCallback(async () => {
     const el = previewRef.current;
     if (!el || downloading) return;
+    console.log('PDF: starting download');
     setDownloading(true);
     try {
-      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+      const canvas = await html2canvas(el, { scale: 3, useCORS: true, backgroundColor: '#ffffff' });
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
       const imgWidth = 210;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
       pdf.save(`${template.title}-${Date.now()}.pdf`);
-    } catch {
-      showToast('Erreur lors de l\'export PDF', 'error');
+      showToast('PDF téléchargé!', 'success');
+    } catch (e) {
+      console.error('PDF error:', e);
+      showToast('Erreur: ' + (e as Error).message, 'error');
     } finally {
       setDownloading(false);
     }
@@ -1079,15 +1082,18 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
   const handleDownloadPNG = useCallback(async () => {
     const el = previewRef.current;
     if (!el || downloading) return;
+    console.log('PNG: starting download');
     setDownloading(true);
     try {
-      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+      const canvas = await html2canvas(el, { scale: 3, useCORS: true, backgroundColor: '#ffffff' });
       const link = document.createElement('a');
       link.download = `${template.title}-${Date.now()}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
-    } catch {
-      showToast('Erreur lors de l\'export PNG', 'error');
+      showToast('PNG téléchargé!', 'success');
+    } catch (e) {
+      console.error('PNG error:', e);
+      showToast('Erreur: ' + (e as Error).message, 'error');
     } finally {
       setDownloading(false);
     }
@@ -1281,8 +1287,12 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
       </div>
 
       {/* Fixed action buttons - always visible, above bottom nav */}
-      <div className="fixed bottom-[85px] left-3 right-3 z-[9999] flex gap-2 bg-white/95 p-2 rounded-xl shadow-xl backdrop-blur">
+      <div
+        className="fixed bottom-[85px] left-3 right-3 z-[9999] flex gap-2 bg-white/95 p-2 rounded-xl shadow-xl backdrop-blur"
+        onClick={(e) => e.stopPropagation()}
+      >
         <button
+          type="button"
           onClick={handleDownloadPDF}
           disabled={downloading}
           className="flex-1 h-[42px] text-[13px] font-bold bg-orange-500 text-white rounded-lg disabled:opacity-50"
@@ -1290,6 +1300,7 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
           {downloading ? '...' : '\uD83D\uDCE5 PDF'}
         </button>
         <button
+          type="button"
           onClick={handleDownloadPNG}
           disabled={downloading}
           className="flex-1 h-[42px] text-[13px] font-bold bg-blue-600 text-white rounded-lg disabled:opacity-50"
