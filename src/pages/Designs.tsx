@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Download, FileText, Edit3, Lock, Image as ImageIcon,
   X, Upload, FileImage, Home, Wrench, Mail, CreditCard, Church,
-  User, CheckCircle, Crown, Sparkles,
+  User, CheckCircle, Crown, Sparkles, Phone, MapPin, Briefcase, GraduationCap, Award,
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -1058,22 +1058,37 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
   const [downloading, setDownloading] = useState(false);
 
   const getFileName = () => {
-    const nom = (values.nom || values.titre || values.expediteur || 'MonCV').trim().replace(/\s+/g, '-').replace(/[^a-zA-Z0-9\-]/g, '');
-    return nom || 'MonCV';
+    const nom = (values.nom || values.titre || values.expediteur || 'MonCV').trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+    const today = new Date();
+    const dateStr = `${String(today.getDate()).padStart(2, '0')}-${String(today.getMonth() + 1).padStart(2, '0')}-${today.getFullYear()}`;
+    return `${nom}_${dateStr}`;
+  };
+
+  const getFilePrefix = () => {
+    const layout = template.content?.layout;
+    if (layout === 'card') return 'Carte_Visite';
+    if (layout === 'letter') return 'Lettre';
+    if (layout === 'poster') return 'Affiche';
+    return 'CV';
   };
 
   const handleDownloadPDF = useCallback(async () => {
     const el = previewRef.current;
     if (!el || downloading) return;
-    const nomFichier = `CV-${getFileName()}.pdf`;
+    const nomFichier = `${getFilePrefix()}_${getFileName()}.pdf`;
     setDownloading(true);
     try {
-      const canvas = await html2canvas(el, { scale: 3, useCORS: true, backgroundColor: '#ffffff', logging: false });
-      const imgData = canvas.toDataURL('image/png', 1.0);
+      const canvas = await html2canvas(el, {
+        scale: 3, useCORS: true, backgroundColor: '#ffffff', logging: false, windowWidth: 794,
+      });
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgWidth = 210;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      const layout = template.content?.layout;
+      if (layout === 'card') {
+        pdf.addImage(imgData, 'JPEG', 0, 0, 90, 55, undefined, 'FAST');
+      } else {
+        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
+      }
       pdf.save(nomFichier);
       showToast(`${nomFichier} téléchargé!`, 'success');
     } catch (e) {
@@ -1087,11 +1102,13 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
   const handleDownloadPNG = useCallback(async () => {
     const el = previewRef.current;
     if (!el || downloading) return;
-    const nomFichier = `CV-${getFileName()}.png`;
+    const nomFichier = `${getFilePrefix()}_${getFileName()}.png`;
     setDownloading(true);
     try {
-      const canvas = await html2canvas(el, { scale: 3, useCORS: true, backgroundColor: '#ffffff' });
-      const dataUrl = canvas.toDataURL('image/png', 1.0);
+      const canvas = await html2canvas(el, {
+        scale: 3, useCORS: true, backgroundColor: '#ffffff', logging: false, windowWidth: 794,
+      });
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
       const a = document.createElement('a');
       a.href = dataUrl;
       a.download = nomFichier;
@@ -1116,51 +1133,89 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
 
     if (template.content?.layout === 'cv') {
       return (
-        <div ref={previewRef} className="w-full bg-white rounded-xl overflow-hidden flex shadow-lg" style={{ color: textColor }}>
+        <div ref={previewRef} className="bg-white mx-auto overflow-hidden flex shadow-lg" style={{ width: '794px', minHeight: '1123px', color: textColor, fontFamily: 'Inter, sans-serif' }}>
           {sidebar && (
-            <div className="w-1/3 p-3 flex flex-col items-center gap-2" style={{ background: sidebar, color: '#fff' }}>
+            <div className="flex flex-col items-center gap-3 p-6" style={{ width: '260px', background: sidebar, color: '#fff' }}>
               {values.photo ? (
-                <img src={values.photo} alt="Photo" className="w-16 h-16 rounded-full object-cover border-2 border-white/30" />
+                <img src={values.photo} alt="Photo" className="rounded-full object-cover border-4 border-white/20" style={{ width: '120px', height: '120px' }} />
               ) : (
-                <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center">
-                  <Upload size={20} className="text-white/50" />
+                <div className="rounded-full bg-white/20 flex items-center justify-center border-4 border-white/20" style={{ width: '120px', height: '120px' }}>
+                  <User size={40} className="text-white/50" />
                 </div>
               )}
-              <div className="w-full space-y-1">
-                <div className="h-px w-full bg-white/20" />
-                <p className="text-[10px] font-bold text-white/80">CONTACT</p>
-                {values.phone && <p className="text-[9px] text-white/70">{values.phone}</p>}
-                {values.email && <p className="text-[9px] text-white/70">{values.email}</p>}
-                {values.adresse && <p className="text-[9px] text-white/70">{values.adresse}</p>}
+              <div className="w-full space-y-3">
+                <div className="h-0.5 w-full bg-white/20" />
+                <div>
+                  <p className="text-[11px] font-black tracking-wider mb-2">CONTACT</p>
+                  <div className="space-y-1.5">
+                    {values.phone && (<div className="flex items-center gap-1.5"><Phone size={10} className="opacity-70" /><p className="text-[10px] opacity-80">{values.phone}</p></div>)}
+                    {values.email && (<div className="flex items-center gap-1.5"><Mail size={10} className="opacity-70" /><p className="text-[10px] opacity-80">{values.email}</p></div>)}
+                    {values.adresse && (<div className="flex items-center gap-1.5"><MapPin size={10} className="opacity-70" /><p className="text-[10px] opacity-80">{values.adresse}</p></div>)}
+                  </div>
+                </div>
+                {values.langues && (
+                  <div>
+                    <div className="h-0.5 w-full bg-white/20 mb-2" />
+                    <p className="text-[11px] font-black tracking-wider mb-1.5">LANGUES</p>
+                    <p className="text-[10px] opacity-80">{values.langues}</p>
+                  </div>
+                )}
               </div>
             </div>
           )}
-          <div className="flex-1 p-4 space-y-2">
-            <h2 className="text-lg font-black" style={{ color: accent }}>{values.nom || 'Votre Nom'}</h2>
-            <p className="text-sm font-semibold text-gray-600">{values.fonction || 'Votre Fonction'}</p>
+          <div className="flex-1 p-8 space-y-4">
             {!sidebar && (
-              <div className="text-[10px] text-gray-500 space-y-0.5">
-                {values.phone && <p>{values.phone}</p>}
-                {values.email && <p>{values.email}</p>}
-                {values.adresse && <p>{values.adresse}</p>}
+              <div className="mb-4 pb-4 border-b-2" style={{ borderColor: accent }}>
+                <h1 className="font-black" style={{ fontSize: '28px', color: accent, lineHeight: '1.2' }}>{values.nom || 'Votre Nom'}</h1>
+                <p className="font-semibold text-gray-500" style={{ fontSize: '14px' }}>{values.fonction || 'Votre Fonction'}</p>
+                <div className="flex flex-wrap gap-3 mt-2">
+                  {values.phone && (<div className="flex items-center gap-1"><Phone size={11} style={{ color: accent }} /><p className="text-[10px] text-gray-600">{values.phone}</p></div>)}
+                  {values.email && (<div className="flex items-center gap-1"><Mail size={11} style={{ color: accent }} /><p className="text-[10px] text-gray-600">{values.email}</p></div>)}
+                  {values.adresse && (<div className="flex items-center gap-1"><MapPin size={11} style={{ color: accent }} /><p className="text-[10px] text-gray-600">{values.adresse}</p></div>)}
+                </div>
+              </div>
+            )}
+            {sidebar && (
+              <div className="mb-4 pb-3 border-b-2" style={{ borderColor: accent }}>
+                <h1 className="font-black" style={{ fontSize: '28px', color: accent, lineHeight: '1.2' }}>{values.nom || 'Votre Nom'}</h1>
+                <p className="font-semibold text-gray-500" style={{ fontSize: '14px' }}>{values.fonction || 'Votre Fonction'}</p>
               </div>
             )}
             {values.experience && (
               <div>
-                <p className="text-xs font-bold mb-1" style={{ color: accent }}>EXPÉRIENCE</p>
-                <p className="text-[10px] text-gray-600 whitespace-pre-wrap">{values.experience}</p>
+                <div className="flex items-center gap-2 mb-2">
+                  <Briefcase size={14} style={{ color: accent }} />
+                  <p className="font-black tracking-wide" style={{ fontSize: '12px', color: accent }}>EXPÉRIENCE PROFESSIONNELLE</p>
+                </div>
+                <div className="h-px w-full mb-2" style={{ background: accent, opacity: 0.2 }} />
+                <p className="text-gray-700 whitespace-pre-wrap" style={{ fontSize: '11px', lineHeight: '1.6' }}>{values.experience}</p>
               </div>
             )}
             {values.formation && (
               <div>
-                <p className="text-xs font-bold mb-1" style={{ color: accent }}>FORMATION</p>
-                <p className="text-[10px] text-gray-600 whitespace-pre-wrap">{values.formation}</p>
+                <div className="flex items-center gap-2 mb-2">
+                  <GraduationCap size={14} style={{ color: accent }} />
+                  <p className="font-black tracking-wide" style={{ fontSize: '12px', color: accent }}>FORMATION</p>
+                </div>
+                <div className="h-px w-full mb-2" style={{ background: accent, opacity: 0.2 }} />
+                <p className="text-gray-700 whitespace-pre-wrap" style={{ fontSize: '11px', lineHeight: '1.6' }}>{values.formation}</p>
               </div>
             )}
             {values.competences && (
               <div>
-                <p className="text-xs font-bold mb-1" style={{ color: accent }}>COMPÉTENCES</p>
-                <p className="text-[10px] text-gray-600 whitespace-pre-wrap">{values.competences}</p>
+                <div className="flex items-center gap-2 mb-2">
+                  <Award size={14} style={{ color: accent }} />
+                  <p className="font-black tracking-wide" style={{ fontSize: '12px', color: accent }}>COMPÉTENCES</p>
+                </div>
+                <div className="h-px w-full mb-2" style={{ background: accent, opacity: 0.2 }} />
+                <p className="text-gray-700 whitespace-pre-wrap" style={{ fontSize: '11px', lineHeight: '1.6' }}>{values.competences}</p>
+              </div>
+            )}
+            {values.langues && !sidebar && (
+              <div>
+                <p className="font-black tracking-wide mb-2" style={{ fontSize: '12px', color: accent }}>LANGUES</p>
+                <div className="h-px w-full mb-2" style={{ background: accent, opacity: 0.2 }} />
+                <p className="text-gray-700" style={{ fontSize: '11px' }}>{values.langues}</p>
               </div>
             )}
           </div>
@@ -1170,35 +1225,35 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
 
     if (template.content?.layout === 'letter') {
       return (
-        <div ref={previewRef} className="w-full bg-white rounded-xl overflow-hidden p-5 shadow-lg" style={{ color: textColor }}>
-          <div className="h-1 w-16 rounded mb-3" style={{ background: accent }} />
-          {values.expediteur && <p className="text-xs font-bold">{values.expediteur}</p>}
-          {values.adresseExp && <p className="text-xs text-gray-500">{values.adresseExp}</p>}
-          <div className="mt-3 mb-2" />
-          {values.destinataire && <p className="text-xs text-gray-600">{values.destinataire}</p>}
-          <div className="mt-4" />
-          {values.objet && <p className="text-xs font-bold" style={{ color: accent }}>Objet: {values.objet}</p>}
-          <div className="mt-3" />
-          {values.corps && <p className="text-xs text-gray-700 whitespace-pre-wrap">{values.corps}</p>}
+        <div ref={previewRef} className="bg-white mx-auto overflow-hidden shadow-lg" style={{ width: '794px', minHeight: '1123px', color: textColor, fontFamily: 'Inter, sans-serif' }}>
+          <div className="h-2 w-full" style={{ background: accent }} />
+          <div className="p-10">
+            {values.expediteur && <p className="font-bold mb-1" style={{ fontSize: '13px' }}>{values.expediteur}</p>}
+            {values.adresseExp && <p className="text-gray-500 mb-4" style={{ fontSize: '12px' }}>{values.adresseExp}</p>}
+            {values.destinataire && <p className="text-gray-600 mb-4" style={{ fontSize: '12px' }}>{values.destinataire}</p>}
+            {values.objet && (<p className="font-bold mb-4" style={{ fontSize: '13px', color: accent }}>Objet: {values.objet}</p>)}
+            <p className="text-gray-700 whitespace-pre-wrap" style={{ fontSize: '12px', lineHeight: '1.8' }}>{values.corps || 'Corps de la lettre...'}</p>
+          </div>
         </div>
       );
     }
 
     if (template.content?.layout === 'card') {
       return (
-        <div ref={previewRef} className="w-full rounded-xl overflow-hidden shadow-lg flex" style={{ background: bg, color: theme?.text || '#fff' }}>
-          <div className="w-2/3 p-4 flex flex-col justify-center gap-1">
-            <h3 className="font-black text-base" style={{ color: theme?.accent }}>{values.nom || 'Votre Nom'}</h3>
-            <p className="text-xs font-semibold opacity-80">{values.fonction || 'Fonction'}</p>
-            <div className="mt-2 space-y-0.5">
-              {values.phone && <p className="text-[10px] opacity-70">{values.phone}</p>}
-              {values.email && <p className="text-[10px] opacity-70">{values.email}</p>}
-              {values.adresse && <p className="text-[10px] opacity-70">{values.adresse}</p>}
+        <div ref={previewRef} className="mx-auto overflow-hidden shadow-lg flex" style={{ width: '794px', minHeight: '1123px', background: bg, color: theme?.text || '#fff', fontFamily: 'Inter, sans-serif' }}>
+          <div className="flex-1 p-12 flex flex-col justify-center gap-2">
+            <div className="h-1 w-16 rounded mb-3" style={{ background: theme?.accent }} />
+            <h3 className="font-black" style={{ fontSize: '32px', color: theme?.accent }}>{values.nom || 'Votre Nom'}</h3>
+            <p className="font-semibold" style={{ fontSize: '16px', opacity: 0.8 }}>{values.fonction || 'Fonction'}</p>
+            <div className="mt-4 space-y-1.5">
+              {values.phone && (<div className="flex items-center gap-2"><Phone size={14} style={{ color: theme?.accent }} /><p style={{ fontSize: '13px', opacity: 0.7 }}>{values.phone}</p></div>)}
+              {values.email && (<div className="flex items-center gap-2"><Mail size={14} style={{ color: theme?.accent }} /><p style={{ fontSize: '13px', opacity: 0.7 }}>{values.email}</p></div>)}
+              {values.adresse && (<div className="flex items-center gap-2"><MapPin size={14} style={{ color: theme?.accent }} /><p style={{ fontSize: '13px', opacity: 0.7 }}>{values.adresse}</p></div>)}
             </div>
           </div>
-          <div className="w-1/3 p-3 flex items-center justify-center">
-            <div className="w-12 h-12 rounded-full border-2 flex items-center justify-center" style={{ borderColor: theme?.accent }}>
-              {values.photo ? <img src={values.photo} alt="" className="w-full h-full rounded-full object-cover" /> : <User size={20} />}
+          <div className="flex items-center justify-center p-10" style={{ width: '300px' }}>
+            <div className="rounded-full border-4 flex items-center justify-center" style={{ width: '140px', height: '140px', borderColor: theme?.accent }}>
+              {values.photo ? <img src={values.photo} alt="" className="w-full h-full rounded-full object-cover" /> : <User size={50} />}
             </div>
           </div>
         </div>
@@ -1207,14 +1262,14 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
 
     if (template.content?.layout === 'poster') {
       return (
-        <div ref={previewRef} className="w-full rounded-xl overflow-hidden shadow-lg flex flex-col items-center justify-center p-6" style={{ background: bg, color: theme?.text || '#fff', minHeight: '300px' }}>
-          <div className="h-1 w-20 rounded mb-4" style={{ background: theme?.accent }} />
-          <h2 className="text-xl font-black text-center">{values.titre || 'TITRE'}</h2>
-          {values.theme && <p className="text-sm mt-2 opacity-80 text-center">{values.theme}</p>}
-          <div className="h-px w-16 my-3" style={{ background: theme?.accent }} />
-          {values.date && <p className="text-xs opacity-70">{values.date}</p>}
-          {values.heure && <p className="text-xs opacity-70">{values.heure}</p>}
-          {values.lieu && <p className="text-xs opacity-70 mt-1">{values.lieu}</p>}
+        <div ref={previewRef} className="mx-auto overflow-hidden shadow-lg flex flex-col items-center justify-center" style={{ width: '794px', minHeight: '1123px', background: bg, color: theme?.text || '#fff', fontFamily: 'Inter, sans-serif', padding: '60px' }}>
+          <div className="h-1.5 w-24 rounded mb-6" style={{ background: theme?.accent }} />
+          <h2 className="font-black text-center" style={{ fontSize: '42px' }}>{values.titre || 'TITRE'}</h2>
+          {values.theme && <p className="mt-3 text-center" style={{ fontSize: '18px', opacity: 0.8 }}>{values.theme}</p>}
+          <div className="h-px w-20 my-6" style={{ background: theme?.accent }} />
+          {values.date && <p style={{ fontSize: '16px', opacity: 0.7 }}>{values.date}</p>}
+          {values.heure && <p style={{ fontSize: '16px', opacity: 0.7 }}>{values.heure}</p>}
+          {values.lieu && (<div className="flex items-center gap-2 mt-3"><MapPin size={18} style={{ opacity: 0.7 }} /><p style={{ fontSize: '16px', opacity: 0.7 }}>{values.lieu}</p></div>)}
         </div>
       );
     }
@@ -1242,8 +1297,12 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
         {/* Scrollable content */}
         <div className="overflow-y-auto flex-1 px-4 py-4 space-y-4 pb-[180px]">
           {/* Live preview */}
-          <div className="bg-white/5 rounded-2xl p-3">
-            {renderPreview()}
+          <div className="bg-white/5 rounded-2xl p-3 overflow-hidden">
+            <div style={{ width: '100%', overflow: 'hidden' }}>
+              <div style={{ transform: 'scale(0.42)', transformOrigin: 'top left', width: '238%' }}>
+                {renderPreview()}
+              </div>
+            </div>
           </div>
 
           {/* Form fields */}
