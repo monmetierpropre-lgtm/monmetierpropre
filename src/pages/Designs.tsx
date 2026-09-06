@@ -746,27 +746,12 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
     return 'CV';
   };
 
-  const triggerBlobDownload = (blob: Blob, filename: string) => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.rel = 'noopener';
-    a.style.display = 'block';
-    a.style.position = 'fixed';
-    a.style.left = '-9999px';
-    a.style.top = '0';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-  };
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
 
   const capturePreview = async (): Promise<HTMLCanvasElement> => {
     const el = previewRef.current;
     if (!el) throw new Error('Aperçu introuvable');
 
-    // Find the scaled parent container and temporarily reset its transform
     const scaledParent = el.parentElement;
     const overflowParent = scaledParent?.parentElement;
 
@@ -785,7 +770,6 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
       overflowParent.style.overflow = 'visible';
     }
 
-    // Wait for the DOM to repaint without the transform
     await new Promise((r) => setTimeout(r, 100));
 
     try {
@@ -802,7 +786,6 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
       });
       return canvas;
     } finally {
-      // Restore the transform
       if (scaledParent) {
         scaledParent.style.transform = savedTransform;
         scaledParent.style.width = savedWidth;
@@ -815,23 +798,49 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
 
   const handleDownloadPDF = useCallback(async () => {
     if (downloading) return;
-    const nomFichier = `${getFilePrefix()}_${getFileName()}.pdf`;
     setDownloading(true);
     try {
       const canvas = await capturePreview();
       const imgData = canvas.toDataURL('image/jpeg', 0.95);
-      const pdf = new jsPDF('p', 'mm', 'a4');
       const layout = template.content?.layout;
-      if (layout === 'card') {
-        pdf.addImage(imgData, 'JPEG', 0, 0, 90, 55, undefined, 'FAST');
-      } else {
-        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
+      const isCard = layout === 'card';
+      const printWidth = isCard ? 90 : 210;
+      const printHeight = isCard ? 55 : 297;
+
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        throw new Error('Impossible d\'ouvrir la fenêtre d\'impression. Autorisez les pop-ups pour ce site.');
       }
-      const pdfBlob = pdf.output('blob');
-      triggerBlobDownload(pdfBlob, nomFichier);
-      showToast(`${nomFichier} téléchargé!`, 'success');
+
+      printWindow.document.write(`<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Impression Document</title>
+<style>
+  @page { size: ${isCard ? '90mm 55mm' : 'A4'}; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { display: flex; align-items: center; justify-content: center; }
+  img { width: ${printWidth}mm; height: ${printHeight}mm; object-fit: fill; }
+</style>
+</head>
+<body>
+  <img src="${imgData}" alt="Document" />
+</body>
+</html>`);
+      printWindow.document.close();
+
+      printWindow.onload = () => {
+        setTimeout(() => {
+          printWindow.print();
+        }, 300);
+      };
+
+      showToast('Menu d\'impression ouvert - choisissez "Enregistrer au format PDF"', 'success');
     } catch (e) {
       const msg = (e as Error).message || String(e);
+      console.error('Erreur PDF:', e);
       showToast('Erreur PDF: ' + msg, 'error');
       alert('Erreur lors de la génération du PDF : ' + msg);
     } finally {
@@ -841,18 +850,15 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
 
   const handleDownloadPNG = useCallback(async () => {
     if (downloading) return;
-    const nomFichier = `${getFilePrefix()}_${getFileName()}.png`;
     setDownloading(true);
     try {
       const canvas = await capturePreview();
-      const blob = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob(resolve, 'image/png', 1.0)
-      );
-      if (!blob) throw new Error('Impossible de générer l\'image PNG');
-      triggerBlobDownload(blob, nomFichier);
-      showToast(`${nomFichier} téléchargé!`, 'success');
+      const dataUrl = canvas.toDataURL('image/png');
+      setImagePreviewUrl(dataUrl);
+      showToast('Image générée - maintenez appuyé pour enregistrer', 'success');
     } catch (e) {
       const msg = (e as Error).message || String(e);
+      console.error('Erreur PNG:', e);
       showToast('Erreur PNG: ' + msg, 'error');
       alert('Erreur lors de la génération du PNG : ' + msg);
     } finally {
@@ -1293,7 +1299,7 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
           className="flex-1 h-[46px] text-sm font-bold bg-[#F97316] text-white rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 transition-transform"
         >
           {downloading ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
-          {downloading ? 'Génération...' : 'Télécharger PDF'}
+          {downloading ? 'Génération...' : 'Imprimer / PDF'}
         </button>
         <button
           type="button"
@@ -1302,9 +1308,40 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
           className="flex-1 h-[46px] text-sm font-bold bg-blue-600 text-white rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 transition-transform"
         >
           {downloading ? <Loader2 size={18} className="animate-spin" /> : <ImageIcon size={18} />}
-          {downloading ? 'Génération...' : 'Télécharger PNG'}
+          {downloading ? 'Génération...' : 'Voir Image / PNG'}
         </button>
       </div>
+
+      {/* Image preview overlay for long-press save */}
+      {imagePreviewUrl && (
+        <div className="fixed inset-0 z-[10001] bg-black/90 flex flex-col items-center justify-center animate-[fadeIn_0.2s_ease-out] p-4">
+          <div className="flex items-center justify-between w-full max-w-md mb-3">
+            <p className="text-white text-sm font-semibold flex items-center gap-2">
+              <ImageIcon size={16} className="text-[#F97316]" />
+              Maintenez appuyé sur l\'image pour enregistrer
+            </p>
+            <button
+              onClick={() => setImagePreviewUrl(null)}
+              className="p-2 rounded-xl hover:bg-white/10 transition-colors"
+            >
+              <X size={20} className="text-white" />
+            </button>
+          </div>
+          <img
+            src={imagePreviewUrl}
+            alt="Document"
+            className="max-w-full max-h-[70vh] rounded-xl shadow-2xl"
+          />
+          <a
+            href={imagePreviewUrl}
+            download={`${getFilePrefix()}_${getFileName()}.png`}
+            className="mt-4 px-6 py-3 bg-[#F97316] text-white text-sm font-bold rounded-xl flex items-center gap-2 active:scale-95 transition-transform"
+          >
+            <Download size={18} />
+            Télécharger l\'image
+          </a>
+        </div>
+      )}
     </div>
   );
 }
