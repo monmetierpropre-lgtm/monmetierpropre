@@ -840,56 +840,17 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
     setIsDownloading(true);
     try {
       const canvas = await capturePreview();
-
-      // TOUS LES DOCUMENTS = PNG HAUTE QUALITE (scale 3)
-      const nomFichier = generateUniqueName('png');
-      const blob = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob(resolve, 'image/png', 1.0)
-      );
-      if (!blob) throw new Error('Impossible de generer l\'image PNG');
-
-      let downloaded = false;
-
-      // METHOD 1: Web Share API (opens native Android share sheet)
-      if (!downloaded) {
-        try {
-          const pngFile = new File([blob], nomFichier, { type: 'image/png' });
-          if (navigator.canShare && navigator.canShare({ files: [pngFile] })) {
-            await navigator.share({ files: [pngFile], title: nomFichier, text: `Mon image ${nomFichier}` });
-            showToast(`${nomFichier} partage`, 'success');
-            downloaded = true;
-          }
-        } catch (shareErr) {
-          if ((shareErr as Error).name === 'AbortError') {
-            setIsDownloading(false);
-            return;
-          }
-          console.log('Share failed, trying Blob download', shareErr);
-        }
-      }
-
-      // METHOD 2: Blob URL download
-      if (!downloaded) {
-        downloaded = triggerBlobDownload(blob, nomFichier);
-        if (downloaded) showToast(`${nomFichier} telecharge`, 'success');
-      }
-
-      // METHOD 3: Image overlay for long-press save
-      if (!downloaded) {
-        const dataUrl = canvas.toDataURL('image/png');
-        setImagePreviewUrl(dataUrl);
-        showToast('Image generee - maintenez appuye pour enregistrer', 'success');
-      }
+      const dataUrl = canvas.toDataURL('image/png', 1.0);
+      setImagePreviewUrl(dataUrl);
+      showToast('Image generee - maintenez appuye pour enregistrer', 'success');
     } catch (e) {
       const err = e as Error;
       console.error('Erreur telechargement:', e);
-      if (err.name !== 'AbortError') {
-        showToast('Erreur: ' + (err.message || String(e)), 'error');
-      }
+      showToast('Erreur: ' + (err.message || String(e)), 'error');
     } finally {
       setIsDownloading(false);
     }
-  }, [template, isDownloading, values]);
+  }, [isDownloading, values]);
 
   const inputClass = 'w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-white text-sm placeholder-white/40 focus:outline-none focus:border-[#F97316] transition-colors';
 
@@ -1328,30 +1289,35 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
         </button>
       </div>
 
-      {/* Image preview overlay for long-press save */}
+      {/* Image preview modal for long-press save */}
       {imagePreviewUrl && (
-        <div className="fixed inset-0 z-[10001] bg-black/90 flex flex-col items-center justify-center animate-[fadeIn_0.2s_ease-out] p-4">
-          <div className="flex items-center justify-between w-full max-w-md mb-3">
-            <p className="text-white text-sm font-semibold flex items-center gap-2">
-              <ImageIcon size={16} className="text-[#F97316]" />
-              Maintenez appuyé sur l'image pour enregistrer
-            </p>
+        <div className="fixed inset-0 z-[10001] bg-black flex flex-col items-center justify-start animate-[fadeIn_0.2s_ease-out] p-3 overflow-auto">
+          <div className="w-full max-w-md flex items-center justify-between mb-3 mt-2">
             <button
               onClick={() => setImagePreviewUrl(null)}
               className="p-2 rounded-xl hover:bg-white/10 transition-colors"
             >
-              <X size={20} className="text-white" />
+              <X size={22} className="text-white" />
             </button>
+            <p className="text-white text-sm font-bold">Aperçu PNG</p>
+            <div className="w-9" />
+          </div>
+          <div className="w-full max-w-md bg-amber-100 border border-amber-300 rounded-xl p-3 mb-3">
+            <p className="text-amber-900 text-xs font-bold mb-1">Comment enregistrer :</p>
+            <p className="text-amber-800 text-xs leading-relaxed">
+              1. Appuie LONGUEMENT sur l'image ci-dessous<br/>
+              2. Clique « Enregistrer l'image » ou « Partager »
+            </p>
           </div>
           <img
             src={imagePreviewUrl}
             alt="Document"
-            className="max-w-full max-h-[70vh] rounded-xl shadow-2xl"
+            className="max-w-full rounded-xl shadow-2xl"
           />
           <a
             href={imagePreviewUrl}
             download={`${getFilePrefix()}_${getFileName()}.png`}
-            className="mt-4 px-6 py-3 bg-[#F97316] text-white text-sm font-bold rounded-xl flex items-center gap-2 active:scale-95 transition-transform"
+            className="mt-4 mb-6 px-6 py-3 bg-[#F97316] text-white text-sm font-bold rounded-xl flex items-center gap-2 active:scale-95 transition-transform"
           >
             <Download size={18} />
             Télécharger l'image
