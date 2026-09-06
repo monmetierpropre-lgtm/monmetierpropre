@@ -770,20 +770,23 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
       overflowParent.style.overflow = 'visible';
     }
 
-    await new Promise((r) => setTimeout(r, 100));
+    await new Promise((r) => setTimeout(r, 150));
 
     try {
       const canvas = await html2canvas(el, {
         scale: 2,
         useCORS: true,
-        allowTaint: true,
+        allowTaint: false,
         backgroundColor: '#ffffff',
-        logging: false,
+        logging: true,
         width: el.scrollWidth,
         height: el.scrollHeight,
         windowWidth: el.scrollWidth,
         windowHeight: el.scrollHeight,
       });
+      if (canvas.width === 0 || canvas.height === 0) {
+        throw new Error('Canvas vide - l\'aperçu n\'a pas pu etre capture');
+      }
       return canvas;
     } finally {
       if (scaledParent) {
@@ -802,47 +805,43 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
     try {
       const canvas = await capturePreview();
       const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pdf = new jsPDF('p', 'mm', 'a4');
       const layout = template.content?.layout;
-      const isCard = layout === 'card';
-      const printWidth = isCard ? 90 : 210;
-      const printHeight = isCard ? 55 : 297;
-
-      const printWindow = window.open('', '_blank');
-      if (!printWindow) {
-        throw new Error('Impossible d\'ouvrir la fenêtre d\'impression. Autorisez les pop-ups pour ce site.');
+      if (layout === 'card') {
+        pdf.addImage(imgData, 'JPEG', 0, 0, 90, 55, undefined, 'FAST');
+      } else {
+        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
       }
+      const nomFichier = `${getFilePrefix()}_${getFileName()}.pdf`;
 
-      printWindow.document.write(`<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Impression Document</title>
-<style>
-  @page { size: ${isCard ? '90mm 55mm' : 'A4'}; margin: 0; }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { display: flex; align-items: center; justify-content: center; }
-  img { width: ${printWidth}mm; height: ${printHeight}mm; object-fit: fill; }
-</style>
-</head>
-<body>
-  <img src="${imgData}" alt="Document" />
-</body>
-</html>`);
-      printWindow.document.close();
-
-      printWindow.onload = () => {
-        setTimeout(() => {
-          printWindow.print();
-        }, 300);
-      };
-
-      showToast('Menu d\'impression ouvert - choisissez "Enregistrer au format PDF"', 'success');
+      // Try Web Share API with file (opens native Android share sheet)
+      const pdfBlob = pdf.output('blob');
+      const pdfFile = new File([pdfBlob], nomFichier, { type: 'application/pdf' });
+      if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+        await navigator.share({ files: [pdfFile], title: nomFichier, text: `Mon document ${nomFichier}` });
+        showToast(`${nomFichier} pret a etre partage`, 'success');
+      } else {
+        // Fallback: direct download via Blob URL
+        const url = URL.createObjectURL(pdfBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = nomFichier;
+        a.rel = 'noopener';
+        a.style.display = 'block';
+        a.style.position = 'fixed';
+        a.style.left = '0';
+        a.style.top = '0';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+        showToast(`${nomFichier} telecharge`, 'success');
+      }
     } catch (e) {
       const msg = (e as Error).message || String(e);
       console.error('Erreur PDF:', e);
       showToast('Erreur PDF: ' + msg, 'error');
-      alert('Erreur lors de la génération du PDF : ' + msg);
+      alert('Erreur lors de la generation du PDF : ' + msg);
     } finally {
       setDownloading(false);
     }
@@ -853,14 +852,28 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
     setDownloading(true);
     try {
       const canvas = await capturePreview();
-      const dataUrl = canvas.toDataURL('image/png');
-      setImagePreviewUrl(dataUrl);
-      showToast('Image générée - maintenez appuyé pour enregistrer', 'success');
+      const nomFichier = `${getFilePrefix()}_${getFileName()}.png`;
+
+      // Try Web Share API with file (opens native Android share sheet)
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, 'image/png', 1.0)
+      );
+      if (!blob) throw new Error('Impossible de generer l\'image PNG');
+      const pngFile = new File([blob], nomFichier, { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [pngFile] })) {
+        await navigator.share({ files: [pngFile], title: nomFichier, text: `Mon image ${nomFichier}` });
+        showToast(`${nomFichier} pret a etre partage`, 'success');
+      } else {
+        // Fallback: show image overlay for long-press save
+        const dataUrl = canvas.toDataURL('image/png');
+        setImagePreviewUrl(dataUrl);
+        showToast('Image generee - maintenez appuye pour enregistrer', 'success');
+      }
     } catch (e) {
       const msg = (e as Error).message || String(e);
       console.error('Erreur PNG:', e);
       showToast('Erreur PNG: ' + msg, 'error');
-      alert('Erreur lors de la génération du PNG : ' + msg);
+      alert('Erreur lors de la generation du PNG : ' + msg);
     } finally {
       setDownloading(false);
     }
@@ -1299,7 +1312,7 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
           className="flex-1 h-[46px] text-sm font-bold bg-[#F97316] text-white rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 transition-transform"
         >
           {downloading ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
-          {downloading ? 'Génération...' : 'Imprimer / PDF'}
+          {downloading ? 'Génération...' : 'Télécharger PDF'}
         </button>
         <button
           type="button"
@@ -1308,7 +1321,7 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
           className="flex-1 h-[46px] text-sm font-bold bg-blue-600 text-white rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 transition-transform"
         >
           {downloading ? <Loader2 size={18} className="animate-spin" /> : <ImageIcon size={18} />}
-          {downloading ? 'Génération...' : 'Voir Image / PNG'}
+          {downloading ? 'Génération...' : 'Télécharger PNG'}
         </button>
       </div>
 
@@ -1318,7 +1331,7 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
           <div className="flex items-center justify-between w-full max-w-md mb-3">
             <p className="text-white text-sm font-semibold flex items-center gap-2">
               <ImageIcon size={16} className="text-[#F97316]" />
-              Maintenez appuyé sur l\'image pour enregistrer
+              Maintenez appuyé sur l'image pour enregistrer
             </p>
             <button
               onClick={() => setImagePreviewUrl(null)}
@@ -1338,7 +1351,7 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
             className="mt-4 px-6 py-3 bg-[#F97316] text-white text-sm font-bold rounded-xl flex items-center gap-2 active:scale-95 transition-transform"
           >
             <Download size={18} />
-            Télécharger l\'image
+            Télécharger l'image
           </a>
         </div>
       )}
