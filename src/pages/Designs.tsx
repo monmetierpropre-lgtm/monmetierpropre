@@ -703,7 +703,8 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
   });
   const previewRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const [downloading, setDownloading] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [downloadingPng, setDownloadingPng] = useState(false);
 
   const updateValue = (key: string, value: string) => {
     setValues((prev) => ({ ...prev, [key]: value }));
@@ -834,8 +835,8 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
   };
 
   const handleDownloadPDF = useCallback(async () => {
-    if (downloading) return;
-    setDownloading(true);
+    if (downloadingPdf) return;
+    setDownloadingPdf(true);
     try {
       const canvas = await capturePreview();
       const imgData = canvas.toDataURL('image/jpeg', 0.92);
@@ -853,22 +854,47 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
 
       const nomFichier = generateUniqueName('pdf');
       const pdfBlob = pdf.output('blob');
-      const pdfFile = new File([pdfBlob], nomFichier, { type: 'application/pdf' });
 
-      if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-        try {
+      // METHOD 1: Web Share API with file (opens native Android share sheet)
+      try {
+        const pdfFile = new File([pdfBlob], nomFichier, { type: 'application/pdf' });
+        if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
           await navigator.share({ files: [pdfFile], title: nomFichier, text: `Mon document ${nomFichier}` });
           showToast(`${nomFichier} pret a etre partage`, 'success');
-        } catch (shareErr) {
-          if ((shareErr as Error).name === 'AbortError') {
-            triggerBlobDownload(pdfBlob, nomFichier);
-          } else {
-            throw shareErr;
-          }
+          return;
         }
-      } else {
-        triggerBlobDownload(pdfBlob, nomFichier);
+      } catch (shareErr) {
+        if ((shareErr as Error).name === 'AbortError') {
+          console.log('Share cancelled, trying Blob download');
+        } else {
+          console.log('Share failed, trying Blob download', shareErr);
+        }
       }
+
+      // METHOD 2: Blob URL download (works on most browsers)
+      try {
+        triggerBlobDownload(pdfBlob, nomFichier);
+        return;
+      } catch (e2) {
+        console.log('Blob download failed, trying DataURI', e2);
+      }
+
+      // METHOD 3: DataURI in new tab (last resort)
+      try {
+        const dataUri = pdf.output('datauristring');
+        const newWindow = window.open();
+        if (newWindow) {
+          newWindow.document.write(`<iframe src="${dataUri}" style="width:100%;height:100%;border:0"></iframe>`);
+          showToast('PDF ouvert dans un nouvel onglet - enregistre-le', 'success');
+        } else {
+          window.location.href = dataUri;
+        }
+        return;
+      } catch (e3) {
+        console.log('DataURI method failed', e3);
+      }
+
+      throw new Error('Toutes les methodes de telechargement ont echoue');
     } catch (e) {
       const err = e as Error;
       console.error('Erreur PDF:', e);
@@ -877,13 +903,13 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
         alert('Erreur lors de la generation du PDF : ' + (err.message || String(e)));
       }
     } finally {
-      setDownloading(false);
+      setDownloadingPdf(false);
     }
-  }, [template, downloading, values]);
+  }, [template, downloadingPdf, values]);
 
   const handleDownloadPNG = useCallback(async () => {
-    if (downloading) return;
-    setDownloading(true);
+    if (downloadingPng) return;
+    setDownloadingPng(true);
     try {
       const canvas = await capturePreview();
       const nomFichier = generateUniqueName('png');
@@ -892,24 +918,35 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
         canvas.toBlob(resolve, 'image/png', 1.0)
       );
       if (!blob) throw new Error('Impossible de generer l\'image PNG');
-      const pngFile = new File([blob], nomFichier, { type: 'image/png' });
 
-      if (navigator.canShare && navigator.canShare({ files: [pngFile] })) {
-        try {
+      // METHOD 1: Web Share API with file
+      try {
+        const pngFile = new File([blob], nomFichier, { type: 'image/png' });
+        if (navigator.canShare && navigator.canShare({ files: [pngFile] })) {
           await navigator.share({ files: [pngFile], title: nomFichier, text: `Mon image ${nomFichier}` });
           showToast(`${nomFichier} pret a etre partage`, 'success');
-        } catch (shareErr) {
-          if ((shareErr as Error).name === 'AbortError') {
-            triggerBlobDownload(blob, nomFichier);
-          } else {
-            throw shareErr;
-          }
+          return;
         }
-      } else {
-        const dataUrl = canvas.toDataURL('image/png');
-        setImagePreviewUrl(dataUrl);
-        showToast('Image generee - maintenez appuye pour enregistrer', 'success');
+      } catch (shareErr) {
+        if ((shareErr as Error).name === 'AbortError') {
+          console.log('Share cancelled, trying fallback');
+        } else {
+          console.log('Share failed, trying fallback', shareErr);
+        }
       }
+
+      // METHOD 2: Blob URL download
+      try {
+        triggerBlobDownload(blob, nomFichier);
+        return;
+      } catch (e2) {
+        console.log('Blob download failed, showing image overlay', e2);
+      }
+
+      // METHOD 3: Show image overlay for long-press save
+      const dataUrl = canvas.toDataURL('image/png');
+      setImagePreviewUrl(dataUrl);
+      showToast('Image generee - maintenez appuye pour enregistrer', 'success');
     } catch (e) {
       const err = e as Error;
       console.error('Erreur PNG:', e);
@@ -918,9 +955,9 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
         alert('Erreur lors de la generation du PNG : ' + (err.message || String(e)));
       }
     } finally {
-      setDownloading(false);
+      setDownloadingPng(false);
     }
-  }, [template, downloading, values]);
+  }, [template, downloadingPng, values]);
 
   const inputClass = 'w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-white text-sm placeholder-white/40 focus:outline-none focus:border-[#F97316] transition-colors';
 
@@ -1351,20 +1388,20 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
         <button
           type="button"
           onClick={handleDownloadPDF}
-          disabled={downloading}
+          disabled={downloadingPdf}
           className="flex-1 h-[46px] text-sm font-bold bg-[#F97316] text-white rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 transition-transform"
         >
-          {downloading ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
-          {downloading ? 'Génération...' : 'Télécharger PDF'}
+          {downloadingPdf ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+          {downloadingPdf ? 'Génération...' : 'Télécharger PDF'}
         </button>
         <button
           type="button"
           onClick={handleDownloadPNG}
-          disabled={downloading}
+          disabled={downloadingPng}
           className="flex-1 h-[46px] text-sm font-bold bg-blue-600 text-white rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 transition-transform"
         >
-          {downloading ? <Loader2 size={18} className="animate-spin" /> : <ImageIcon size={18} />}
-          {downloading ? 'Génération...' : 'Télécharger PNG'}
+          {downloadingPng ? <Loader2 size={18} className="animate-spin" /> : <ImageIcon size={18} />}
+          {downloadingPng ? 'Génération...' : 'Télécharger PNG'}
         </button>
       </div>
 
