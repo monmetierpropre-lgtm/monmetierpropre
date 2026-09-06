@@ -1,9 +1,36 @@
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import Logo from '@/components/Logo';
+import { useReglesText } from '@/lib/hooks';
+
+const defaultRules = [
+  { title: '1. Inscription des experts', text: 'Tout technicien peut s\'inscrire en remplissant le formulaire "Devenir Expert". Chaque demande est examinée par l\'administrateur avant approbation.' },
+  { title: '2. Code Mon Métier', text: 'Chaque expert approuvé reçoit un code unique (format MM-XXXX). Ce code identifie l\'expert sur la plateforme.' },
+  { title: '3. Contact entre clients et experts', text: 'Les clients peuvent contacter directement les experts via WhatsApp. Les échanges se font en dehors de la plateforme.' },
+  { title: '4. Mon Espace', text: 'Chaque expert peut gérer son profil depuis "Mon Espace" en utilisant son numéro WhatsApp. Il peut modifier sa photo, ses informations et ses travaux.' },
+  { title: '5. Administration', text: 'L\'administrateur gère les demandes, les experts approuvés, les paramètres et les mises à jour de l\'application.' },
+  { title: '6. Utilisation des outils', text: 'Les outils (calculatrice, jeux, agenda, coffre secret) sont disponibles gratuitement pour tous les utilisateurs.' },
+  { title: '7. Modèles et designs', text: 'Tous les modèles sont gratuits. Vous pouvez les modifier et les exporter en PDF.' },
+  { title: '8. Respect et professionnalisme', text: 'Tout utilisateur s\'engage à utiliser la plateforme de manière professionnelle et respectueuse.' },
+];
 
 export default function Regles() {
   const navigate = useNavigate();
+  const remoteText = useReglesText();
+
+  let rules = defaultRules;
+  if (remoteText) {
+    try {
+      const parsed = JSON.parse(remoteText);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        rules = parsed;
+      }
+    } catch {
+      if (remoteText.trim()) {
+        rules = [{ title: 'Règles de la plateforme', text: remoteText }];
+      }
+    }
+  }
 
   return (
     <div className="min-h-screen bg-[#0B2E8C] text-white pb-24">
@@ -26,45 +53,12 @@ export default function Regles() {
           <h3 className="font-bold text-lg text-[#F97316]">Règles de la plateforme</h3>
 
           <div className="space-y-3 text-sm text-white/80">
-            <div>
-              <p className="font-bold text-white">1. Inscription des experts</p>
-              <p>Tout technicien peut s'inscrire en remplissant le formulaire "Devenir Expert". Chaque demande est examinée par l'administrateur avant approbation.</p>
-            </div>
-
-            <div>
-              <p className="font-bold text-white">2. Code Mon Métier</p>
-              <p>Chaque expert approuvé reçoit un code unique (format MM-XXXX). Ce code identifie l'expert sur la plateforme.</p>
-            </div>
-
-            <div>
-              <p className="font-bold text-white">3. Contact entre clients et experts</p>
-              <p>Les clients peuvent contacter directement les experts via WhatsApp. Les échanges se font en dehors de la plateforme.</p>
-            </div>
-
-            <div>
-              <p className="font-bold text-white">4. Mon Espace</p>
-              <p>Chaque expert peut gérer son profil depuis "Mon Espace" en utilisant son numéro WhatsApp. Il peut modifier sa photo, ses informations et ses travaux.</p>
-            </div>
-
-            <div>
-              <p className="font-bold text-white">5. Administration</p>
-              <p>L'administrateur gère les demandes, les experts approuvés, les paramètres et les mises à jour de l'application.</p>
-            </div>
-
-            <div>
-              <p className="font-bold text-white">6. Utilisation des outils</p>
-              <p>Les outils (calculatrice, jeux, agenda, coffre secret) sont disponibles gratuitement pour tous les utilisateurs.</p>
-            </div>
-
-            <div>
-              <p className="font-bold text-white">7. Modèles et designs</p>
-              <p>Tous les modèles sont gratuits. Vous pouvez les modifier et les exporter en PDF.</p>
-            </div>
-
-            <div>
-              <p className="font-bold text-white">8. Respect et professionnalisme</p>
-              <p>Tout utilisateur s'engage à utiliser la plateforme de manière professionnelle et respectueuse.</p>
-            </div>
+            {rules.map((rule, i) => (
+              <div key={i}>
+                <p className="font-bold text-white">{rule.title}</p>
+                <p>{rule.text}</p>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -79,7 +73,7 @@ export default function Regles() {
 
         <div className="text-center text-xs text-white/40 pt-4">
           <p>Mon Métier - Connecter Clients et techniciens ou Experts</p>
-          <p className="mt-1">Version 1.0.0</p>
+          <p className="mt-1">Version 1.0.7</p>
         </div>
       </div>
     </div>

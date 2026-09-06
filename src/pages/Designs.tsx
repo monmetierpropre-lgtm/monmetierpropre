@@ -6,6 +6,8 @@ import {
   User, CheckCircle, Crown, Sparkles,
 } from 'lucide-react';
 import jsPDF from 'jspdf';
+import { usePricing } from '@/lib/hooks';
+import type { FilePricing } from '@/lib/supabase';
 
 /* ============================================================
    TYPES
@@ -741,21 +743,54 @@ export default function Designs() {
   const navigate = useNavigate();
   const [activeFilter, setActiveFilter] = useState<Category>('all');
   const [editing, setEditing] = useState<Template | null>(null);
+  const [payingFor, setPayingFor] = useState<Template | null>(null);
+  const { pricing } = usePricing();
 
   const filtered = activeFilter === 'all'
     ? allTemplates
     : allTemplates.filter((t) => t.category === activeFilter);
 
+  const getPricing = (template: Template): FilePricing | undefined => pricing[template.id];
+
   const handleEdit = (template: Template) => {
-    if (template.isPro) return;
+    const p = getPricing(template);
+    if (p?.is_paid) {
+      setPayingFor(template);
+      return;
+    }
     setEditing(template);
   };
 
+  const handleDownload = (template: Template) => {
+    const p = getPricing(template);
+    if (p?.is_paid) {
+      setPayingFor(template);
+      return;
+    }
+    downloadTemplateImage(template.id, template.title);
+  };
+
   const handleUnlock = (template: Template) => {
+    const p = getPricing(template);
+    if (p?.is_paid) {
+      setPayingFor(template);
+      return;
+    }
     window.open(
       `https://wa.me/243813971187?text=Je%20veux%20debloquer%20CV%20Pro%20${encodeURIComponent(template.title)}`,
       '_blank'
     );
+  };
+
+  const handlePaidSuccess = () => {
+    if (!payingFor) return;
+    const template = payingFor;
+    setPayingFor(null);
+    if (template.editable) {
+      setEditing(template);
+    } else {
+      downloadTemplateImage(template.id, template.title);
+    }
   };
 
   return (
@@ -838,43 +873,34 @@ export default function Designs() {
 
                 {/* Actions */}
                 <div className="mt-2.5 space-y-1.5">
-                  {template.editable && !template.isPro && (
+                  {template.editable && (
                     <button
                       onClick={() => handleEdit(template)}
-                      className="w-full bg-[#F97316] text-white text-xs font-bold rounded-xl py-2 flex items-center justify-center gap-1 active:scale-95 transition-transform"
+                      style={getPricing(template)?.btn_color ? { backgroundColor: getPricing(template)!.btn_color! } : undefined}
+                      className="w-full text-white text-xs font-bold rounded-xl py-2 flex items-center justify-center gap-1 active:scale-95 transition-transform bg-[#F97316]"
                     >
                       <Edit3 size={13} />
-                      Modifier
+                      {getPricing(template)?.is_paid ? 'Débloquer & Modifier' : (getPricing(template)?.btn_label || 'Modifier')}
                     </button>
                   )}
-                  {template.isPro && (
+                  {!template.editable && (
                     <button
-                      onClick={() => handleUnlock(template)}
-                      className="w-full bg-[#F97316] text-white text-xs font-bold rounded-xl py-2 flex items-center justify-center gap-1 active:scale-95 transition-transform"
-                    >
-                      <Lock size={13} />
-                      Débloquer
-                    </button>
-                  )}
-                  {!template.editable && !template.isPro && (
-                    <button
-                      onClick={() => downloadTemplateImage(template.id, template.title)}
-                      className="w-full bg-blue-600 text-white text-xs font-bold rounded-xl py-2 flex items-center justify-center gap-1 active:scale-95 transition-transform"
+                      onClick={() => handleDownload(template)}
+                      style={getPricing(template)?.btn_color ? { backgroundColor: getPricing(template)!.btn_color! } : undefined}
+                      className="w-full text-white text-xs font-bold rounded-xl py-2 flex items-center justify-center gap-1 active:scale-95 transition-transform bg-blue-600"
                     >
                       <Download size={13} />
-                      Télécharger
-                    </button>
-                  )}
-                  {!template.editable && template.isPro && (
-                    <button
-                      onClick={() => handleUnlock(template)}
-                      className="w-full bg-[#F97316] text-white text-xs font-bold rounded-xl py-2 flex items-center justify-center gap-1 active:scale-95 transition-transform"
-                    >
-                      <Lock size={13} />
-                      Débloquer
+                      {getPricing(template)?.is_paid ? 'Débloquer & Télécharger' : (getPricing(template)?.btn_label || 'Télécharger')}
                     </button>
                   )}
                 </div>
+                {getPricing(template)?.is_paid && (
+                  <div className="mt-1 text-center">
+                    <span className="text-[10px] text-orange-400 font-bold">
+                      Payant: {getPricing(template)?.price}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -885,6 +911,117 @@ export default function Designs() {
       {editing && editing.content && (
         <EditorModal template={editing} onClose={() => setEditing(null)} />
       )}
+
+      {/* Payment Modal */}
+      {payingFor && (
+        <PaymentModal
+          template={payingFor}
+          pricing={getPricing(payingFor)}
+          onClose={() => setPayingFor(null)}
+          onSuccess={handlePaidSuccess}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+   PAYMENT MODAL
+   ============================================================ */
+function PaymentModal({
+  template,
+  pricing,
+  onClose,
+  onSuccess,
+}: {
+  template: Template;
+  pricing: FilePricing | undefined;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [paid, setPaid] = useState(false);
+  const [showCode, setShowCode] = useState(false);
+
+  const handlePay = () => {
+    setShowCode(true);
+    if (pricing?.payment_code) {
+      try {
+        const w = window.open('', '_blank');
+        if (w) {
+          w.document.write(pricing.payment_code);
+          w.document.close();
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+  };
+
+  const confirmPaid = () => {
+    setPaid(true);
+    setTimeout(() => {
+      onSuccess();
+    }, 800);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-black/70 flex items-end sm:items-center justify-center animate-[fadeIn_0.2s_ease-out]" onClick={onClose}>
+      <div
+        className="bg-[#0B2E8C] w-full max-w-md rounded-t-3xl sm:rounded-3xl overflow-hidden border border-white/20 animate-[scaleIn_0.3s_ease-out]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+          <h2 className="font-black text-lg flex items-center gap-2">
+            <CreditCard size={18} className="text-[#F97316]" />
+            Débloquer le fichier
+          </h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/10">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="px-4 py-6 space-y-4">
+          {paid ? (
+            <div className="text-center space-y-3">
+              <CheckCircle size={48} className="mx-auto text-green-500" />
+              <p className="font-bold text-lg text-green-400">Paiement réussi!</p>
+              <p className="text-sm text-white/70">Téléchargement en cours...</p>
+            </div>
+          ) : (
+            <>
+              <div className="bg-white/10 rounded-2xl p-4 text-center">
+                <p className="text-sm text-white/70">Fichier</p>
+                <p className="font-bold text-lg">{template.title}</p>
+                <p className="text-2xl font-black text-[#F97316] mt-2">{pricing?.price || 'Payant'}</p>
+              </div>
+
+              {!showCode ? (
+                <button
+                  onClick={handlePay}
+                  className="w-full bg-[#F97316] text-white font-bold rounded-2xl py-3.5 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+                >
+                  <CreditCard size={20} />
+                  Payer {pricing?.price || ''}
+                </button>
+              ) : (
+                <>
+                  <div className="bg-white/5 rounded-2xl p-3 text-center">
+                    <p className="text-xs text-white/60 mb-1">Page de paiement ouverte</p>
+                    <p className="text-xs text-white/50">Effectuez le paiement, puis confirmez ci-dessous</p>
+                  </div>
+                  <button
+                    onClick={confirmPaid}
+                    className="w-full bg-green-600 text-white font-bold rounded-2xl py-3.5 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+                  >
+                    <CheckCircle size={20} />
+                    J'ai payé - Télécharger
+                  </button>
+                </>
+              )}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1186,7 +1323,7 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
         </div>
 
         {/* Scrollable content */}
-        <div className="overflow-y-auto flex-1 px-4 py-4 space-y-4">
+        <div className="overflow-y-auto flex-1 px-4 py-4 space-y-4 pb-[180px]">
           {/* Live preview */}
           <div className="bg-white/5 rounded-2xl p-3">
             {renderPreview()}
@@ -1236,21 +1373,28 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
           </div>
         </div>
 
-        {/* Footer actions */}
-        <div className="flex gap-2 px-4 py-3 border-t border-white/10 flex-shrink-0">
+      </div>
+
+      {/* Fixed action buttons - always visible, above bottom nav */}
+      <div
+        style={{ position: 'fixed', bottom: '85px', left: '10px', right: '10px', zIndex: 9999, display: 'flex', gap: '8px' }}
+      >
+        <div className="max-w-md mx-auto flex gap-2 w-full bg-white rounded-2xl shadow-2xl p-2">
           <button
             onClick={exportPDF}
-            className="flex-1 bg-[#F97316] text-white font-bold rounded-2xl py-3 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+            style={{ height: '42px', fontSize: '13px', padding: '8px 12px' }}
+            className="flex-1 bg-[#F97316] text-white font-bold rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
           >
-            <Download size={18} />
-            Export PDF
+            <Download size={16} />
+            PDF
           </button>
           <button
             onClick={exportPNG}
-            className="flex-1 bg-white/15 text-white font-bold rounded-2xl py-3 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform hover:bg-white/25"
+            style={{ height: '42px', fontSize: '13px', padding: '8px 12px' }}
+            className="flex-1 bg-blue-600 text-white font-bold rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
           >
-            <FileImage size={18} />
-            Export PNG
+            <FileImage size={16} />
+            PNG
           </button>
         </div>
       </div>

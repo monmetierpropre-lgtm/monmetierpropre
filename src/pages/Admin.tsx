@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, X, Trash2, Edit, Settings, RefreshCw, Lock } from 'lucide-react';
+import {
+  ArrowLeft, Check, X, Trash2, Edit, Settings, RefreshCw, Lock,
+  FileText, Type,
+} from 'lucide-react';
 import Logo from '@/components/Logo';
 import {
   getDemandes,
@@ -11,10 +14,68 @@ import {
   saveAdminSettings,
   generateExpertCode,
 } from '@/lib/storage';
+import {
+  fetchAllPricing,
+  upsertPricing,
+  fetchSetting,
+  upsertSetting,
+  supabase,
+  type FilePricing,
+} from '@/lib/supabase';
 import { showToast } from '@/lib/toast';
 import type { DemandeExpert, Expert, AdminSettings } from '@/types';
 
-type Tab = 'demandes' | 'approuves' | 'parametres' | 'mises';
+type Tab = 'demandes' | 'approuves' | 'parametres' | 'textes' | 'fichiers' | 'mises';
+
+interface FilePricingState {
+  is_paid: boolean;
+  price: string;
+  payment_code: string;
+  btn_label: string;
+  btn_color: string;
+}
+
+const ALL_FILES = [
+  { id: 'cv-simple-gratuit', title: 'CV Simple Gratuit', type: 'cv' },
+  { id: 'cv-pro-gratuit', title: 'CV Pro Gratuit', type: 'cv' },
+  { id: 'cv-premium-2024', title: 'CV Premium 2024', type: 'cv' },
+  { id: 'cv-canva-style', title: 'CV Canva Style', type: 'cv' },
+  { id: 'cv-moderne-bleu', title: 'CV Moderne Bleu', type: 'cv' },
+  { id: 'cv-moderne-orange', title: 'CV Moderne Orange', type: 'cv' },
+  { id: 'cv-elegance', title: 'CV Élégance', type: 'cv' },
+  { id: 'cv-creatif', title: 'CV Créatif', type: 'cv' },
+  { id: 'cv-minimaliste', title: 'CV Minimaliste', type: 'cv' },
+  { id: 'cv-classique', title: 'CV Classique', type: 'cv' },
+  { id: 'cv-technique', title: 'CV Technique', type: 'cv' },
+  { id: 'cv-executive', title: 'CV Executive', type: 'cv' },
+  { id: 'lettre-classique', title: 'Lettre Classique', type: 'lettre' },
+  { id: 'lettre-moderne', title: 'Lettre Moderne', type: 'lettre' },
+  { id: 'lettre-simple', title: 'Lettre Simple', type: 'lettre' },
+  { id: 'lettre-elegante', title: 'Lettre Élégante', type: 'lettre' },
+  { id: 'lettre-colorée', title: 'Lettre Colorée', type: 'lettre' },
+  { id: 'carte-plombier', title: 'Carte Plombier', type: 'carte' },
+  { id: 'carte-electricien', title: 'Carte Électricien', type: 'carte' },
+  { id: 'carte-carreleur', title: 'Carte Carreleur', type: 'carte' },
+  { id: 'carte-plafonneur', title: 'Carte Plafonneur', type: 'carte' },
+  { id: 'carte-macon', title: 'Carte Maçon', type: 'carte' },
+  { id: 'carte-peintre', title: 'Carte Peintre', type: 'carte' },
+  { id: 'affiche-croisade', title: 'Affiche Croisade', type: 'affiche' },
+  { id: 'affiche-culte', title: 'Affiche Culte', type: 'affiche' },
+  { id: 'affiche-jeunesse', title: 'Affiche Jeunesse', type: 'affiche' },
+  { id: 'affiche-conference', title: 'Affiche Conférence', type: 'affiche' },
+  { id: 'affiche-reveil', title: 'Affiche Réveil', type: 'affiche' },
+  { id: 'affiche-bapteme', title: 'Affiche Baptême', type: 'affiche' },
+  { id: 'affiche-mariage', title: 'Affiche Mariage', type: 'affiche' },
+  { id: 'affiche-special', title: 'Affiche Spéciale', type: 'affiche' },
+  { id: 'plan-2ch', title: 'Plan Maison 2 Chambres', type: 'plan' },
+  { id: 'plan-3ch', title: 'Plan Maison 3 Chambres', type: 'plan' },
+  { id: 'plan-4ch', title: 'Plan Maison 4 Chambres', type: 'plan' },
+  { id: 'plan-5ch', title: 'Plan Maison 5 Chambres', type: 'plan' },
+  { id: 'outil-plombier', title: 'Guide Plombier', type: 'outil' },
+  { id: 'outil-electricien', title: 'Guide Électricien', type: 'outil' },
+  { id: 'outil-carreleur', title: 'Guide Carreleur', type: 'outil' },
+  { id: 'outil-macon', title: 'Guide Maçon', type: 'outil' },
+];
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -26,12 +87,72 @@ export default function Admin() {
   const [settings, setSettings] = useState<AdminSettings>(getAdminSettings());
   const [editingExpert, setEditingExpert] = useState<Expert | null>(null);
 
+  const [accueilBtns, setAccueilBtns] = useState({
+    plombier: { nom: 'Plombier', url: 'https://wa.me/243849561334' },
+    plafonneur: { nom: 'Plafonneur', url: 'https://wa.me/243849561334' },
+    carreleur: { nom: 'Carreleur', url: 'https://wa.me/243813971187' },
+    autres: { nom: 'Autres services', url: 'https://wa.me/243813971187' },
+  });
+  const [reglesText, setReglesText] = useState('');
+
+  const [pricingMap, setPricingMap] = useState<Record<string, FilePricing>>({});
+  const [pricingEdits, setPricingEdits] = useState<Record<string, FilePricingState>>({});
+  const [savingAll, setSavingAll] = useState(false);
+
   useEffect(() => {
     if (unlocked) {
       setDemandes(getDemandes());
       setExperts(getExperts());
+      loadRemoteData();
     }
   }, [unlocked]);
+
+  useEffect(() => {
+    if (!unlocked) return;
+    const channel = supabase
+      .channel('admin_realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'file_pricing' },
+        () => loadPricing()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'app_settings' },
+        () => loadSettings()
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [unlocked]);
+
+  const loadRemoteData = async () => {
+    await loadPricing();
+    await loadSettings();
+  };
+
+  const loadPricing = async () => {
+    const map = await fetchAllPricing();
+    setPricingMap(map);
+    const edits: Record<string, FilePricingState> = {};
+    ALL_FILES.forEach((f) => {
+      const p = map[f.id];
+      edits[f.id] = {
+        is_paid: p?.is_paid ?? false,
+        price: p?.price ?? '',
+        payment_code: p?.payment_code ?? '',
+        btn_label: p?.btn_label ?? 'Télécharger',
+        btn_color: p?.btn_color ?? '#F97316',
+      };
+    });
+    setPricingEdits(edits);
+  };
+
+  const loadSettings = async () => {
+    const btnsData = await fetchSetting('accueil_buttons');
+    if (btnsData) setAccueilBtns(btnsData as typeof accueilBtns);
+    const reglesData = await fetchSetting('regles_text');
+    if (reglesData) setReglesText((reglesData as { text: string }).text);
+  };
 
   const storedPin = getAdminSettings().pin;
 
@@ -42,11 +163,6 @@ export default function Admin() {
     } else {
       showToast('PIN incorrect', 'error');
     }
-  };
-
-  const refreshData = () => {
-    setDemandes(getDemandes());
-    setExperts(getExperts());
   };
 
   const approuverDemande = (demande: DemandeExpert) => {
@@ -108,18 +224,63 @@ export default function Admin() {
     showToast('Paramètres sauvegardés', 'success');
   };
 
-  const forcerMiseAJour = () => {
-    const newVersion = Date.now().toString();
-    localStorage.setItem('app_version', newVersion);
-    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-      navigator.serviceWorker.controller.postMessage({ type: 'FORCE_UPDATE' });
+  const saveTexts = async () => {
+    try {
+      await upsertSetting('accueil_buttons', accueilBtns as unknown as Record<string, unknown>);
+      await upsertSetting('regles_text', { text: reglesText });
+      showToast('Textes sauvegardés et appliqués instantanément', 'success');
+    } catch {
+      showToast('Erreur lors de la sauvegarde', 'error');
     }
-    caches.keys().then((keys) => {
-      Promise.all(keys.map((key) => caches.delete(key))).then(() => {
-        showToast('Mise à jour forcée! Rechargement...', 'success');
-        setTimeout(() => window.location.reload(), 1000);
+  };
+
+  const savePricing = async (fileId: string) => {
+    const edit = pricingEdits[fileId];
+    if (!edit) return;
+    const file = ALL_FILES.find((f) => f.id === fileId);
+    if (!file) return;
+    try {
+      await upsertPricing(fileId, file.type, edit.is_paid, edit.price, edit.payment_code, edit.btn_label, edit.btn_color);
+      showToast(`Sauvegardé pour ${file.title}`, 'success');
+    } catch {
+      showToast('Erreur sauvegarde', 'error');
+    }
+  };
+
+  const saveAllPricing = async () => {
+    for (const file of ALL_FILES) {
+      const edit = pricingEdits[file.id];
+      if (!edit) continue;
+      try {
+        await upsertPricing(file.id, file.type, edit.is_paid, edit.price, edit.payment_code, edit.btn_label, edit.btn_color);
+      } catch { /* continue */ }
+    }
+  };
+
+  const forcerMiseAJour = async () => {
+    setSavingAll(true);
+    try {
+      await upsertSetting('accueil_buttons', accueilBtns as unknown as Record<string, unknown>);
+      await upsertSetting('regles_text', { text: reglesText });
+      await saveAllPricing();
+      saveAdminSettings(settings);
+      localStorage.setItem('annonce_admin', settings.annonce);
+      const newVersion = Date.now().toString();
+      localStorage.setItem('app_version', newVersion);
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ type: 'FORCE_UPDATE' });
+      }
+      caches.keys().then((keys) => {
+        Promise.all(keys.map((key) => caches.delete(key))).then(() => {
+          setSavingAll(false);
+          showToast('Mise à jour forcée! Tous les utilisateurs seront mis à jour', 'success');
+          setTimeout(() => window.location.reload(), 1500);
+        });
       });
-    });
+    } catch {
+      setSavingAll(false);
+      showToast('Erreur lors de la mise à jour', 'error');
+    }
   };
 
   if (!unlocked) {
@@ -162,6 +323,8 @@ export default function Admin() {
     { id: 'demandes', label: 'Demandes', icon: Check },
     { id: 'approuves', label: 'Approuvés', icon: Edit },
     { id: 'parametres', label: 'Paramètres', icon: Settings },
+    { id: 'textes', label: 'Textes', icon: Type },
+    { id: 'fichiers', label: 'Fichiers', icon: FileText },
     { id: 'mises', label: 'Mises à jour', icon: RefreshCw },
   ];
 
@@ -179,7 +342,6 @@ export default function Admin() {
           </div>
           <Logo size={32} />
         </div>
-        {/* Tabs */}
         <div className="flex overflow-x-auto no-scrollbar px-2 pb-2">
           {tabs.map((tab) => {
             const Icon = tab.icon;
@@ -200,7 +362,6 @@ export default function Admin() {
       </header>
 
       <div className="px-4 py-4 max-w-md mx-auto">
-        {/* Tab: Demandes */}
         {activeTab === 'demandes' && (
           <div className="space-y-3">
             <h2 className="font-bold text-lg mb-2">Demandes d'experts</h2>
@@ -250,7 +411,6 @@ export default function Admin() {
           </div>
         )}
 
-        {/* Tab: Approuvés */}
         {activeTab === 'approuves' && (
           <div className="space-y-3">
             <h2 className="font-bold text-lg mb-2">Experts approuvés</h2>
@@ -337,7 +497,6 @@ export default function Admin() {
           </div>
         )}
 
-        {/* Tab: Paramètres */}
         {activeTab === 'parametres' && (
           <div className="space-y-4">
             <h2 className="font-bold text-lg mb-2">Paramètres</h2>
@@ -390,22 +549,165 @@ export default function Admin() {
           </div>
         )}
 
-        {/* Tab: Mises à jour */}
+        {activeTab === 'textes' && (
+          <div className="space-y-4">
+            <h2 className="font-bold text-lg mb-2 flex items-center gap-2">
+              <Type size={18} className="text-[#F97316]" />
+              Gestion des textes
+            </h2>
+
+            <div className="bg-white/10 rounded-2xl p-4 space-y-3">
+              <h3 className="font-bold text-sm text-[#F97316]">Boutons Accueil (Techniciens)</h3>
+              {(['plombier', 'plafonneur', 'carreleur', 'autres'] as const).map((key) => (
+                <div key={key} className="space-y-2">
+                  <label className="block text-xs font-semibold text-white/70 capitalize">{key}</label>
+                  <input
+                    type="text"
+                    value={accueilBtns[key].nom}
+                    onChange={(e) => setAccueilBtns({ ...accueilBtns, [key]: { ...accueilBtns[key], nom: e.target.value } })}
+                    className={inputClass}
+                    placeholder="Nom du bouton"
+                  />
+                  <input
+                    type="text"
+                    value={accueilBtns[key].url}
+                    onChange={(e) => setAccueilBtns({ ...accueilBtns, [key]: { ...accueilBtns[key], url: e.target.value } })}
+                    className={inputClass}
+                    placeholder="Lien WhatsApp"
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="bg-white/10 rounded-2xl p-4 space-y-3">
+              <h3 className="font-bold text-sm text-[#F97316]">Texte de la page Règles</h3>
+              <p className="text-xs text-white/50">Collez le texte des règles. Laissez vide pour garder les règles par défaut.</p>
+              <textarea
+                value={reglesText}
+                onChange={(e) => setReglesText(e.target.value)}
+                rows={8}
+                className={inputClass + ' resize-none'}
+                placeholder="Texte des règles de la plateforme..."
+              />
+            </div>
+
+            <button
+              onClick={saveTexts}
+              className="w-full bg-green-600 rounded-2xl py-3 font-bold active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
+            >
+              <Check size={18} />
+              Sauvegarder les textes
+            </button>
+          </div>
+        )}
+
+        {activeTab === 'fichiers' && (
+          <div className="space-y-3">
+            <h2 className="font-bold text-lg mb-2 flex items-center gap-2">
+              <FileText size={18} className="text-[#F97316]" />
+              Gérer boutons télécharger - Page Design
+            </h2>
+            <p className="text-xs text-white/50 mb-2">
+              Par défaut, tous les fichiers sont gratuits. Activez "Payant" pour exiger un paiement avant téléchargement.
+            </p>
+            {ALL_FILES.map((file) => {
+              const edit = pricingEdits[file.id] || { is_paid: false, price: '', payment_code: '', btn_label: 'Télécharger', btn_color: '#F97316' };
+              return (
+                <div key={file.id} className="bg-white/10 rounded-2xl p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-bold text-sm">{file.title}</h3>
+                      <span className="text-[10px] text-white/40 uppercase">{file.type}</span>
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <span className="text-xs font-bold">{edit.is_paid ? 'Payant' : 'Gratuit'}</span>
+                      <button
+                        onClick={() => setPricingEdits({
+                          ...pricingEdits,
+                          [file.id]: { ...edit, is_paid: !edit.is_paid },
+                        })}
+                        className={`relative w-11 h-6 rounded-full transition-colors ${edit.is_paid ? 'bg-[#F97316]' : 'bg-white/20'}`}
+                      >
+                        <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${edit.is_paid ? 'translate-x-5' : ''}`} />
+                      </button>
+                    </label>
+                  </div>
+                  <div className="space-y-2">
+                    <div>
+                      <label className="block text-[10px] text-white/50 mb-0.5">Texte du bouton</label>
+                      <input
+                        type="text"
+                        value={edit.btn_label}
+                        onChange={(e) => setPricingEdits({ ...pricingEdits, [file.id]: { ...edit, btn_label: e.target.value } })}
+                        className={inputClass}
+                        placeholder="Télécharger"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-white/50 mb-0.5">Couleur du bouton</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={edit.btn_color}
+                          onChange={(e) => setPricingEdits({ ...pricingEdits, [file.id]: { ...edit, btn_color: e.target.value } })}
+                          className="w-10 h-10 rounded-xl border border-white/20 bg-transparent cursor-pointer"
+                        />
+                        <input
+                          type="text"
+                          value={edit.btn_color}
+                          onChange={(e) => setPricingEdits({ ...pricingEdits, [file.id]: { ...edit, btn_color: e.target.value } })}
+                          className={inputClass}
+                          placeholder="#F97316"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  {edit.is_paid && (
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={edit.price}
+                        onChange={(e) => setPricingEdits({ ...pricingEdits, [file.id]: { ...edit, price: e.target.value } })}
+                        className={inputClass}
+                        placeholder="Prix (ex: 5$ ou 1000 CDF)"
+                      />
+                      <textarea
+                        value={edit.payment_code}
+                        onChange={(e) => setPricingEdits({ ...pricingEdits, [file.id]: { ...edit, payment_code: e.target.value } })}
+                        rows={3}
+                        className={inputClass + ' resize-none'}
+                        placeholder="Collez le code de paiement (Stripe, Airtel Money, M-Pesa, FlexPay)..."
+                      />
+                    </div>
+                  )}
+                  <button
+                    onClick={() => savePricing(file.id)}
+                    className="w-full bg-white/15 rounded-xl py-2 font-bold text-xs active:scale-95 transition-transform"
+                  >
+                    Sauvegarder ce fichier
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {activeTab === 'mises' && (
           <div className="space-y-4">
             <h2 className="font-bold text-lg mb-2">Mises à jour</h2>
             <div className="bg-white/10 rounded-2xl p-6 text-center space-y-4">
-              <RefreshCw size={48} className="mx-auto text-[#F97316]" />
+              <RefreshCw size={48} className={`mx-auto text-[#F97316] ${savingAll ? 'animate-spin' : ''}`} />
               <p className="text-sm text-white/70">
-                Forcer une mise à jour vide le cache et recharge l'application pour tous les utilisateurs.
+                Forcer une mise à jour sauvegarde tous les textes, tous les prix de fichiers, vide le cache et recharge l'application pour tous les utilisateurs.
                 Version actuelle: {localStorage.getItem('app_version') || '1.0.0'}
               </p>
               <button
                 onClick={forcerMiseAJour}
-                className="w-full bg-[#F97316] rounded-2xl py-3.5 font-bold active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
+                disabled={savingAll}
+                className="w-full bg-[#F97316] rounded-2xl py-3.5 font-bold active:scale-[0.98] transition-transform flex items-center justify-center gap-2 disabled:opacity-50"
               >
-                <RefreshCw size={20} />
-                Forcer mise à jour
+                <RefreshCw size={20} className={savingAll ? 'animate-spin' : ''} />
+                {savingAll ? 'Sauvegarde en cours...' : 'Forcer la mise à jour'}
               </button>
             </div>
           </div>

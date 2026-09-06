@@ -1,10 +1,11 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MoreVertical, Youtube, MessageCircle, Music, Search, Wrench, PaintBucket, Grid3x3, Zap, ChevronRight } from 'lucide-react';
+import { MoreVertical, Youtube, MessageCircle, Music, Search, Wrench, PaintBucket, Grid3x3, ChevronRight } from 'lucide-react';
 import Logo from '@/components/Logo';
 import { getAnnonce } from '@/lib/storage';
+import { useAccueilButtons, useAnnonce } from '@/lib/hooks';
 
-const techniciens = [
+const defaultTechniciens = [
   { nom: 'Plombier', bg: 'bg-blue-600', url: 'https://wa.me/243849561334' },
   { nom: 'Plafonneur', bg: 'bg-orange-500', url: 'https://wa.me/243849561334' },
   { nom: 'Carreleur', bg: 'bg-green-600', url: 'https://wa.me/243813971187' },
@@ -23,7 +24,19 @@ export default function Accueil() {
   const [menuOpen, setMenuOpen] = useState(false);
   const clickCount = useRef(0);
   const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const annonce = getAnnonce();
+  const localAnnonce = getAnnonce();
+  const remoteAnnonce = useAnnonce();
+  const annonce = remoteAnnonce || localAnnonce;
+
+  const remoteButtons = useAccueilButtons();
+  const techniciens = remoteButtons
+    ? [
+        { nom: remoteButtons.plombier?.nom || 'Plombier', bg: 'bg-blue-600', url: remoteButtons.plombier?.url || 'https://wa.me/243849561334' },
+        { nom: remoteButtons.plafonneur?.nom || 'Plafonneur', bg: 'bg-orange-500', url: remoteButtons.plafonneur?.url || 'https://wa.me/243849561334' },
+        { nom: remoteButtons.carreleur?.nom || 'Carreleur', bg: 'bg-green-600', url: remoteButtons.carreleur?.url || 'https://wa.me/243813971187' },
+        { nom: remoteButtons.autres?.nom || 'Autres services', bg: 'bg-blue-900', url: remoteButtons.autres?.url || 'https://wa.me/243813971187' },
+      ]
+    : defaultTechniciens;
 
   const handleLogoClick = () => {
     clickCount.current += 1;
@@ -39,7 +52,6 @@ export default function Accueil() {
 
   return (
     <div className="min-h-screen bg-[#0B2E8C] text-white pb-24">
-      {/* Header */}
       <header className="sticky top-0 z-40 bg-[#0B2E8C] border-b border-white/10">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3 cursor-pointer select-none" onClick={handleLogoClick}>
@@ -95,20 +107,17 @@ export default function Accueil() {
       </header>
 
       <div className="px-4 py-4 space-y-6 max-w-md mx-auto">
-        {/* Annonce admin */}
         {annonce && (
           <div className="bg-white/10 backdrop-blur-sm rounded-2xl px-4 py-3 border border-white/20 animate-[fadeIn_0.5s_ease-out]">
             <p className="text-sm font-semibold text-center">{annonce}</p>
           </div>
         )}
 
-        {/* Sous-titre */}
         <div className="text-center">
           <h2 className="text-xl font-bold mb-1">Bienvenue sur Mon Métier</h2>
           <p className="text-sm text-white/70">La plateforme qui connecte clients et techniciens qualifiés</p>
         </div>
 
-        {/* Bouton principal */}
         <button
           onClick={() => navigate('/experts')}
           className="w-full bg-white text-[#0B2E8C] font-black text-lg rounded-2xl py-4 shadow-lg active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
@@ -117,7 +126,6 @@ export default function Accueil() {
           Contacter un technicien ou expert
         </button>
 
-        {/* Cartes techniciens */}
         <div>
           <h3 className="text-lg font-bold mb-3">Contactez un technicien</h3>
           <div className="grid grid-cols-2 gap-3">
@@ -139,7 +147,6 @@ export default function Accueil() {
           </div>
         </div>
 
-        {/* Cartes exploration */}
         <div>
           <h3 className="text-lg font-bold mb-3">Explorez l'app</h3>
           <div className="space-y-3">
