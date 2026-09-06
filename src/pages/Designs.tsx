@@ -32,7 +32,7 @@ interface Template {
 
 interface TemplateContent {
   fields: { key: string; label: string; type: 'text' | 'textarea' | 'image'; placeholder?: string }[];
-  layout: 'cv' | 'letter' | 'card' | 'poster';
+  layout: 'cv' | 'cv-docx' | 'letter' | 'card' | 'poster';
   defaults: Record<string, string>;
   theme?: { bg: string; accent: string; text: string; sidebar?: string };
 }
@@ -41,6 +41,48 @@ interface TemplateContent {
    CV TEMPLATES (12)
    ============================================================ */
 const cvTemplates: Template[] = [
+  {
+    id: 'cv-simple-docx',
+    title: 'CV Simple Docx - Modèle Officiel',
+    category: 'cv-gratuit',
+    editable: true,
+    isFree: true,
+    badgeColor: 'bg-green-500',
+    badgeText: 'GRATUIT',
+    preview: <CvDocxPreview />,
+    content: {
+      layout: 'cv-docx',
+      fields: [
+        { key: 'prenom', label: 'Prénom', type: 'text', placeholder: 'Augustin' },
+        { key: 'nom', label: 'NOM', type: 'text', placeholder: 'MULENDA' },
+        { key: 'titrePro', label: 'Titre Professionnel', type: 'text', placeholder: 'Technicien en Génie Civil' },
+        { key: 'phone', label: 'Téléphone', type: 'text', placeholder: '+243 813 971 187' },
+        { key: 'adresse', label: 'Adresse (Ville, Pays)', type: 'text', placeholder: 'Lubumbashi, RDC' },
+        { key: 'email', label: 'Email', type: 'text', placeholder: 'augustin@email.com' },
+        { key: 'linkedin', label: 'LinkedIn', type: 'text', placeholder: 'linkedin.com/in/augustin' },
+        { key: 'profil', label: 'Profil Professionnel', type: 'textarea', placeholder: 'Professionnel avec 5 ans d\'expérience...' },
+        { key: 'exp1Poste', label: 'Expérience 1 - Poste', type: 'text', placeholder: 'Chef de Chantier' },
+        { key: 'exp1Entreprise', label: 'Expérience 1 - Entreprise', type: 'text', placeholder: 'BTP Congo SARL' },
+        { key: 'exp1Ville', label: 'Expérience 1 - Ville', type: 'text', placeholder: 'Lubumbashi' },
+        { key: 'exp1Dates', label: 'Expérience 1 - Dates', type: 'text', placeholder: '2022-2024' },
+        { key: 'exp1Missions', label: 'Expérience 1 - Missions', type: 'textarea', placeholder: 'Gestion d\'équipe de 15 ouvriers\nSuivi des délais et budget' },
+        { key: 'exp2Poste', label: 'Expérience 2 - Poste', type: 'text', placeholder: 'Assistant Chef de Chantier' },
+        { key: 'exp2Entreprise', label: 'Expérience 2 - Entreprise', type: 'text', placeholder: 'Construction Plus' },
+        { key: 'exp2Ville', label: 'Expérience 2 - Ville', type: 'text', placeholder: 'Likasi' },
+        { key: 'exp2Dates', label: 'Expérience 2 - Dates', type: 'text', placeholder: '2020-2022' },
+        { key: 'exp2Missions', label: 'Expérience 2 - Missions', type: 'textarea', placeholder: 'Assistant à la planification\nContrôle qualité des matériaux' },
+        { key: 'dip1', label: 'Diplôme 1', type: 'text', placeholder: 'Licence en Génie Civil, UNILU, 2020' },
+        { key: 'dip2', label: 'Diplôme 2', type: 'text', placeholder: 'Baccalauréat Scientifique, 2017' },
+        { key: 'competences', label: 'Compétences (séparées par virgules)', type: 'text', placeholder: 'AutoCAD, MS Project, Management' },
+        { key: 'langues', label: 'Langues', type: 'text', placeholder: 'Français (Courant), Swahili (Bilingue), Anglais (Intermédiaire)' },
+      ],
+      defaults: {
+        prenom: 'Prénom', nom: 'NOM', titrePro: 'Titre Professionnel',
+        phone: '+243...', email: 'email@exemple.com', adresse: 'Ville, Pays',
+      },
+      theme: { bg: '#ffffff', accent: '#0B2E8C', text: '#1a1a1a' },
+    },
+  },
   {
     id: 'cv-simple-gratuit',
     title: 'CV Simple Gratuit',
@@ -587,6 +629,33 @@ function CvPreview({ variant }: { variant: string }) {
   );
 }
 
+function CvDocxPreview() {
+  return (
+    <div className="w-full aspect-[210/297] bg-white rounded-lg overflow-hidden shadow-sm p-3 flex flex-col gap-1">
+      <div className="text-center">
+        <div className="h-2 w-24 bg-gray-800 rounded mx-auto" />
+        <div className="h-2 w-32 bg-gray-700 rounded mx-auto mt-1" />
+        <div className="h-px w-full bg-gray-300 mt-1.5" />
+        <div className="flex justify-center gap-2 mt-1">
+          <div className="h-1 w-10 bg-gray-300 rounded" />
+          <div className="h-1 w-12 bg-gray-300 rounded" />
+          <div className="h-1 w-10 bg-gray-300 rounded" />
+        </div>
+      </div>
+      <div className="h-1.5 w-16 rounded mt-2" style={{ background: '#0B2E8C' }} />
+      <div className="h-1 w-full bg-gray-200 rounded" />
+      <div className="h-1 w-4/5 bg-gray-200 rounded" />
+      <div className="h-1 w-3/5 bg-gray-200 rounded" />
+      <div className="h-1.5 w-14 rounded mt-1" style={{ background: '#0B2E8C' }} />
+      <div className="h-1 w-full bg-gray-200 rounded" />
+      <div className="h-1 w-2/3 bg-gray-200 rounded" />
+      <div className="h-1.5 w-14 rounded mt-1" style={{ background: '#0B2E8C' }} />
+      <div className="h-1 w-full bg-gray-200 rounded" />
+      <div className="h-1 w-3/4 bg-gray-200 rounded" />
+    </div>
+  );
+}
+
 function LettrePreview({ variant }: { variant: string }) {
   const accents: Record<string, string> = {
     classique: '#0B2E8C', moderne: '#F97316', simple: '#3B82F6',
@@ -1058,7 +1127,8 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
   const [downloading, setDownloading] = useState(false);
 
   const getFileName = () => {
-    const nom = (values.nom || values.titre || values.expediteur || 'MonCV').trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+    const raw = values.prenom ? `${values.prenom}_${values.nom}` : (values.nom || values.titre || values.expediteur || 'MonCV');
+    const nom = raw.trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
     const today = new Date();
     const dateStr = `${String(today.getDate()).padStart(2, '0')}-${String(today.getMonth() + 1).padStart(2, '0')}-${today.getFullYear()}`;
     return `${nom}_${dateStr}`;
@@ -1069,6 +1139,7 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
     if (layout === 'card') return 'Carte_Visite';
     if (layout === 'letter') return 'Lettre';
     if (layout === 'poster') return 'Affiche';
+    if (layout === 'cv-docx') return 'CV';
     return 'CV';
   };
 
@@ -1216,6 +1287,84 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
                 <p className="font-black tracking-wide mb-2" style={{ fontSize: '12px', color: accent }}>LANGUES</p>
                 <div className="h-px w-full mb-2" style={{ background: accent, opacity: 0.2 }} />
                 <p className="text-gray-700" style={{ fontSize: '11px' }}>{values.langues}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    if (template.content?.layout === 'cv-docx') {
+      const competencesList = (values.competences || '').split(',').map(s => s.trim()).filter(Boolean);
+      return (
+        <div ref={previewRef} className="bg-white mx-auto overflow-hidden shadow-lg" style={{ width: '794px', minHeight: '1123px', color: '#1a1a1a', fontFamily: 'Inter, sans-serif' }}>
+          <div className="p-12">
+            <h1 className="font-black text-center" style={{ fontSize: '22px', letterSpacing: '2px', color: '#000' }}>CURRICULUM VITAE</h1>
+            <div className="h-0.5 w-full mt-2" style={{ background: '#000' }} />
+            <div className="text-center mt-4">
+              <p className="font-black" style={{ fontSize: '26px', lineHeight: '1.2' }}>
+                {values.prenom || 'Prénom'} <span style={{ textTransform: 'uppercase' }}>{values.nom || 'NOM'}</span>
+              </p>
+              <p className="text-gray-600 font-semibold mt-1" style={{ fontSize: '13px' }}>{values.titrePro || 'Titre Professionnel'}</p>
+            </div>
+            <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 mt-3" style={{ fontSize: '11px', color: '#555' }}>
+              {values.phone && <span>{values.phone}</span>}
+              {values.adresse && <span>{values.adresse}</span>}
+              {values.email && <span>{values.email}</span>}
+              {values.linkedin && <span>{values.linkedin}</span>}
+            </div>
+            <div className="h-px w-full mt-4" style={{ background: '#ddd' }} />
+
+            {values.profil && (
+              <div className="mt-5">
+                <p className="font-black tracking-wide" style={{ fontSize: '12px', color: '#000', textTransform: 'uppercase' as const }}>Profil Professionnel</p>
+                <div className="h-0.5 w-full mt-1" style={{ background: '#000' }} />
+                <p className="text-gray-700 mt-2" style={{ fontSize: '11px', lineHeight: '1.7' }}>{values.profil}</p>
+              </div>
+            )}
+
+            {(values.exp1Poste || values.exp2Poste) && (
+              <div className="mt-5">
+                <p className="font-black tracking-wide" style={{ fontSize: '12px', color: '#000', textTransform: 'uppercase' as const }}>Expériences</p>
+                <div className="h-0.5 w-full mt-1" style={{ background: '#000' }} />
+                {values.exp1Poste && (
+                  <div className="mt-2">
+                    <p className="font-bold" style={{ fontSize: '11px' }}>{values.exp1Poste} | {values.exp1Entreprise} {values.exp1Ville ? `— ${values.exp1Ville}` : ''}</p>
+                    <p className="text-gray-500" style={{ fontSize: '10px' }}>{values.exp1Dates}</p>
+                    {values.exp1Missions && <p className="text-gray-700 whitespace-pre-wrap mt-1" style={{ fontSize: '11px', lineHeight: '1.6' }}>{values.exp1Missions}</p>}
+                  </div>
+                )}
+                {values.exp2Poste && (
+                  <div className="mt-3">
+                    <p className="font-bold" style={{ fontSize: '11px' }}>{values.exp2Poste} | {values.exp2Entreprise} {values.exp2Ville ? `— ${values.exp2Ville}` : ''}</p>
+                    <p className="text-gray-500" style={{ fontSize: '10px' }}>{values.exp2Dates}</p>
+                    {values.exp2Missions && <p className="text-gray-700 whitespace-pre-wrap mt-1" style={{ fontSize: '11px', lineHeight: '1.6' }}>{values.exp2Missions}</p>}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {(values.dip1 || values.dip2) && (
+              <div className="mt-5">
+                <p className="font-black tracking-wide" style={{ fontSize: '12px', color: '#000', textTransform: 'uppercase' as const }}>Formation & Diplômes</p>
+                <div className="h-0.5 w-full mt-1" style={{ background: '#000' }} />
+                {values.dip1 && <p className="mt-2" style={{ fontSize: '11px', lineHeight: '1.6' }}>• {values.dip1}</p>}
+                {values.dip2 && <p style={{ fontSize: '11px', lineHeight: '1.6' }}>• {values.dip2}</p>}
+              </div>
+            )}
+
+            {(competencesList.length > 0 || values.langues) && (
+              <div className="mt-5">
+                <p className="font-black tracking-wide" style={{ fontSize: '12px', color: '#000', textTransform: 'uppercase' as const }}>Compétences & Langues</p>
+                <div className="h-0.5 w-full mt-1" style={{ background: '#000' }} />
+                {competencesList.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {competencesList.map((c, i) => (
+                      <span key={i} className="px-2.5 py-1 rounded text-[10px] font-semibold" style={{ background: '#F0F4FF', color: '#0B2E8C', border: '1px solid #D6E0F5' }}>{c}</span>
+                    ))}
+                  </div>
+                )}
+                {values.langues && <p className="text-gray-700 mt-2" style={{ fontSize: '11px', lineHeight: '1.6' }}>{values.langues}</p>}
               </div>
             )}
           </div>
