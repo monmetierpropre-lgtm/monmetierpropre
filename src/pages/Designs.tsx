@@ -6,8 +6,10 @@ import {
   User, CheckCircle, Crown, Sparkles,
 } from 'lucide-react';
 import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import { usePricing } from '@/lib/hooks';
 import type { FilePricing } from '@/lib/supabase';
+import { showToast } from '@/lib/toast';
 
 /* ============================================================
    TYPES
@@ -1053,140 +1055,43 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
     reader.readAsDataURL(file);
   };
 
-  const exportPDF = useCallback(() => {
-    const doc = new jsPDF();
-    const theme = template.content?.theme;
-    const accent = theme?.accent || '#0B2E8C';
-    const textColor: [number, number, number] = [26, 26, 26];
+  const [downloading, setDownloading] = useState(false);
 
-    if (template.content?.layout === 'cv') {
-      const sidebar = theme?.sidebar;
-      if (sidebar) {
-        doc.setFillColor(sidebar);
-        doc.rect(0, 0, 70, 297, 'F');
-      }
-      let y = sidebar ? 20 : 25;
-      const x = sidebar ? 78 : 20;
-
-      doc.setFontSize(22);
-      doc.setTextColor(accent);
-      doc.setFont('helvetica', 'bold');
-      doc.text(values.nom || 'Votre Nom', x, y);
-      y += 8;
-      doc.setFontSize(12);
-      doc.setTextColor(...textColor);
-      doc.setFont('helvetica', 'normal');
-      doc.text(values.fonction || '', x, y);
-      y += 6;
-
-      const contactInfo = [values.phone, values.email, values.adresse].filter(Boolean);
-      contactInfo.forEach((info) => {
-        doc.setFontSize(9);
-        doc.text(info, x, y);
-        y += 5;
-      });
-      y += 4;
-
-      const sections: { title: string; content: string }[] = [
-        { title: 'EXPÉRIENCE', content: values.experience || '' },
-        { title: 'FORMATION', content: values.formation || '' },
-        { title: 'COMPÉTENCES', content: values.competences || '' },
-      ];
-      if (values.langues) sections.push({ title: 'LANGUES', content: values.langues });
-      if (values.certifications) sections.push({ title: 'CERTIFICATIONS', content: values.certifications });
-      if (values.references) sections.push({ title: 'RÉFÉRENCES', content: values.references });
-
-      sections.forEach((section) => {
-        if (!section.content) return;
-        if (y > 260) { doc.addPage(); y = 20; }
-        doc.setFontSize(11);
-        doc.setTextColor(accent);
-        doc.setFont('helvetica', 'bold');
-        doc.text(section.title, x, y);
-        y += 6;
-        doc.setFontSize(10);
-        doc.setTextColor(...textColor);
-        doc.setFont('helvetica', 'normal');
-        const lines = doc.splitTextToSize(section.content, sidebar ? 110 : 170);
-        lines.forEach((line: string) => {
-          if (y > 280) { doc.addPage(); y = 20; }
-          doc.text(line, x, y);
-          y += 5;
-        });
-        y += 4;
-      });
-
-      if (sidebar && values.photo) {
-        try {
-          doc.addImage(values.photo, 'JPEG', 15, 20, 40, 40);
-        } catch { /* ignore */ }
-      }
-    } else if (template.content?.layout === 'letter') {
-      let y = 25;
-      doc.setFontSize(11);
-      doc.setTextColor(...textColor);
-      doc.setFont('helvetica', 'normal');
-      if (values.expediteur) { doc.text(values.expediteur, 20, y); y += 5; }
-      if (values.adresseExp) { doc.text(values.adresseExp, 20, y); y += 5; }
-      y += 5;
-      if (values.destinataire) { doc.text(values.destinataire, 20, y); y += 5; }
-      y += 10;
-      if (values.objet) {
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(accent);
-        doc.text(`Objet: ${values.objet}`, 20, y);
-        y += 8;
-      }
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...textColor);
-      if (values.corps) {
-        const lines = doc.splitTextToSize(values.corps, 170);
-        lines.forEach((line: string) => {
-          if (y > 270) { doc.addPage(); y = 20; }
-          doc.text(line, 20, y);
-          y += 6;
-        });
-      }
-    } else if (template.content?.layout === 'card') {
-      const bg = theme?.bg || '#0B2E8C';
-      doc.setFillColor(bg);
-      doc.rect(10, 40, 90, 55, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      doc.text(values.nom || '', 15, 55);
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.text(values.fonction || '', 15, 62);
-      doc.setFontSize(8);
-      if (values.phone) doc.text(values.phone, 15, 70);
-      if (values.email) doc.text(values.email, 15, 75);
-      if (values.adresse) doc.text(values.adresse, 15, 80);
-    } else if (template.content?.layout === 'poster') {
-      const bg = theme?.bg || '#1E345D';
-      doc.setFillColor(bg);
-      doc.rect(0, 0, 210, 297, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(28);
-      doc.setFont('helvetica', 'bold');
-      doc.text(values.titre || '', 105, 100, { align: 'center' });
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'normal');
-      if (values.theme) doc.text(values.theme, 105, 120, { align: 'center' });
-      if (values.date) doc.text(values.date, 105, 140, { align: 'center' });
-      if (values.heure) doc.text(values.heure, 105, 150, { align: 'center' });
-      if (values.lieu) doc.text(values.lieu, 105, 160, { align: 'center' });
-    }
-
-    doc.save(`${template.title}.pdf`);
-  }, [template, values]);
-
-  const exportPNG = useCallback(() => {
+  const handleDownloadPDF = useCallback(async () => {
     const el = previewRef.current;
-    if (!el) return;
-    const doc = new jsPDF();
-    doc.save(`${template.title}.pdf`);
-  }, [template]);
+    if (!el || downloading) return;
+    setDownloading(true);
+    try {
+      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgWidth = 210;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      pdf.save(`${template.title}-${Date.now()}.pdf`);
+    } catch {
+      showToast('Erreur lors de l\'export PDF', 'error');
+    } finally {
+      setDownloading(false);
+    }
+  }, [template, downloading]);
+
+  const handleDownloadPNG = useCallback(async () => {
+    const el = previewRef.current;
+    if (!el || downloading) return;
+    setDownloading(true);
+    try {
+      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+      const link = document.createElement('a');
+      link.download = `${template.title}-${Date.now()}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch {
+      showToast('Erreur lors de l\'export PNG', 'error');
+    } finally {
+      setDownloading(false);
+    }
+  }, [template, downloading]);
 
   const inputClass = 'w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-white text-sm placeholder-white/40 focus:outline-none focus:border-[#F97316] transition-colors';
 
@@ -1376,27 +1281,21 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
       </div>
 
       {/* Fixed action buttons - always visible, above bottom nav */}
-      <div
-        style={{ position: 'fixed', bottom: '85px', left: '10px', right: '10px', zIndex: 9999, display: 'flex', gap: '8px' }}
-      >
-        <div className="max-w-md mx-auto flex gap-2 w-full bg-white rounded-2xl shadow-2xl p-2">
-          <button
-            onClick={exportPDF}
-            style={{ height: '42px', fontSize: '13px', padding: '8px 12px' }}
-            className="flex-1 bg-[#F97316] text-white font-bold rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
-          >
-            <Download size={16} />
-            PDF
-          </button>
-          <button
-            onClick={exportPNG}
-            style={{ height: '42px', fontSize: '13px', padding: '8px 12px' }}
-            className="flex-1 bg-blue-600 text-white font-bold rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
-          >
-            <FileImage size={16} />
-            PNG
-          </button>
-        </div>
+      <div className="fixed bottom-[85px] left-3 right-3 z-[9999] flex gap-2 bg-white/95 p-2 rounded-xl shadow-xl backdrop-blur">
+        <button
+          onClick={handleDownloadPDF}
+          disabled={downloading}
+          className="flex-1 h-[42px] text-[13px] font-bold bg-orange-500 text-white rounded-lg disabled:opacity-50"
+        >
+          {downloading ? '...' : '\uD83D\uDCE5 PDF'}
+        </button>
+        <button
+          onClick={handleDownloadPNG}
+          disabled={downloading}
+          className="flex-1 h-[42px] text-[13px] font-bold bg-blue-600 text-white rounded-lg disabled:opacity-50"
+        >
+          {downloading ? '...' : '\uD83D\uDDBC\uFE0F PNG'}
+        </button>
       </div>
     </div>
   );
