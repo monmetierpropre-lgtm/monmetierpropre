@@ -752,22 +752,73 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
     a.href = url;
     a.download = filename;
     a.rel = 'noopener';
-    a.style.display = 'none';
+    a.style.display = 'block';
+    a.style.position = 'fixed';
+    a.style.left = '-9999px';
+    a.style.top = '0';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  };
+
+  const capturePreview = async (): Promise<HTMLCanvasElement> => {
+    const el = previewRef.current;
+    if (!el) throw new Error('Aperçu introuvable');
+
+    // Find the scaled parent container and temporarily reset its transform
+    const scaledParent = el.parentElement;
+    const overflowParent = scaledParent?.parentElement;
+
+    let savedTransform = '';
+    let savedWidth = '';
+    let savedOverflow = '';
+
+    if (scaledParent) {
+      savedTransform = scaledParent.style.transform;
+      savedWidth = scaledParent.style.width;
+      scaledParent.style.transform = 'none';
+      scaledParent.style.width = 'auto';
+    }
+    if (overflowParent) {
+      savedOverflow = overflowParent.style.overflow;
+      overflowParent.style.overflow = 'visible';
+    }
+
+    // Wait for the DOM to repaint without the transform
+    await new Promise((r) => setTimeout(r, 100));
+
+    try {
+      const canvas = await html2canvas(el, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        width: el.scrollWidth,
+        height: el.scrollHeight,
+        windowWidth: el.scrollWidth,
+        windowHeight: el.scrollHeight,
+      });
+      return canvas;
+    } finally {
+      // Restore the transform
+      if (scaledParent) {
+        scaledParent.style.transform = savedTransform;
+        scaledParent.style.width = savedWidth;
+      }
+      if (overflowParent) {
+        overflowParent.style.overflow = savedOverflow;
+      }
+    }
   };
 
   const handleDownloadPDF = useCallback(async () => {
-    const el = previewRef.current;
-    if (!el || downloading) return;
+    if (downloading) return;
     const nomFichier = `${getFilePrefix()}_${getFileName()}.pdf`;
     setDownloading(true);
     try {
-      const canvas = await html2canvas(el, {
-        scale: 3, useCORS: true, backgroundColor: '#ffffff', logging: false, windowWidth: 794,
-      });
+      const canvas = await capturePreview();
       const imgData = canvas.toDataURL('image/jpeg', 0.95);
       const pdf = new jsPDF('p', 'mm', 'a4');
       const layout = template.content?.layout;
@@ -780,29 +831,30 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
       triggerBlobDownload(pdfBlob, nomFichier);
       showToast(`${nomFichier} téléchargé!`, 'success');
     } catch (e) {
-      showToast('Erreur PDF: ' + (e as Error).message, 'error');
+      const msg = (e as Error).message || String(e);
+      showToast('Erreur PDF: ' + msg, 'error');
+      alert('Erreur lors de la génération du PDF : ' + msg);
     } finally {
       setDownloading(false);
     }
   }, [template, downloading, values]);
 
   const handleDownloadPNG = useCallback(async () => {
-    const el = previewRef.current;
-    if (!el || downloading) return;
+    if (downloading) return;
     const nomFichier = `${getFilePrefix()}_${getFileName()}.png`;
     setDownloading(true);
     try {
-      const canvas = await html2canvas(el, {
-        scale: 3, useCORS: true, backgroundColor: '#ffffff', logging: false, windowWidth: 794,
-      });
+      const canvas = await capturePreview();
       const blob = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob(resolve, 'image/png', 0.95)
+        canvas.toBlob(resolve, 'image/png', 1.0)
       );
-      if (!blob) throw new Error('Impossible de générer l\'image');
+      if (!blob) throw new Error('Impossible de générer l\'image PNG');
       triggerBlobDownload(blob, nomFichier);
       showToast(`${nomFichier} téléchargé!`, 'success');
     } catch (e) {
-      showToast('Erreur PNG: ' + (e as Error).message, 'error');
+      const msg = (e as Error).message || String(e);
+      showToast('Erreur PNG: ' + msg, 'error');
+      alert('Erreur lors de la génération du PNG : ' + msg);
     } finally {
       setDownloading(false);
     }
