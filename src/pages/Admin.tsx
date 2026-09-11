@@ -6,10 +6,6 @@ import {
 } from 'lucide-react';
 import Logo from '@/components/Logo';
 import {
-  getDemandes,
-  saveDemandes,
-  getExperts,
-  saveExperts,
   getAdminSettings,
   saveAdminSettings,
   generateExpertCode,
@@ -20,10 +16,19 @@ import {
   fetchSetting,
   upsertSetting,
   supabase,
+  fetchDemandes,
+  updateDemandeStatus,
+  deleteDemande,
+  insertExpert,
+  updateExpert,
+  deleteExpert,
+  fetchExperts,
   type FilePricing,
+  type ExpertDemandeRow,
+  type ExpertRow,
 } from '@/lib/supabase';
 import { showToast } from '@/lib/toast';
-import type { DemandeExpert, Expert, AdminSettings } from '@/types';
+import type { AdminSettings } from '@/types';
 
 type Tab = 'demandes' | 'approuves' | 'parametres' | 'textes' | 'fichiers' | 'mises';
 
@@ -82,10 +87,10 @@ export default function Admin() {
   const [pinInput, setPinInput] = useState('');
   const [unlocked, setUnlocked] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('demandes');
-  const [demandes, setDemandes] = useState<DemandeExpert[]>([]);
-  const [experts, setExperts] = useState<Expert[]>([]);
+  const [demandes, setDemandes] = useState<ExpertDemandeRow[]>([]);
+  const [experts, setExperts] = useState<ExpertRow[]>([]);
   const [settings, setSettings] = useState<AdminSettings>(getAdminSettings());
-  const [editingExpert, setEditingExpert] = useState<Expert | null>(null);
+  const [editingExpert, setEditingExpert] = useState<ExpertRow | null>(null);
 
   const [accueilBtns, setAccueilBtns] = useState({
     plombier: { nom: 'Plombier', url: 'https://wa.me/243849561334' },
@@ -101,8 +106,8 @@ export default function Admin() {
 
   useEffect(() => {
     if (unlocked) {
-      setDemandes(getDemandes());
-      setExperts(getExperts());
+      loadDemandes();
+      loadExpertsData();
       loadRemoteData();
     }
   }, [unlocked]);
@@ -121,9 +126,29 @@ export default function Admin() {
         { event: '*', schema: 'public', table: 'app_settings' },
         () => loadSettings()
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'expert_demandes' },
+        () => loadDemandes()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'experts' },
+        () => loadExpertsData()
+      )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [unlocked]);
+
+  const loadDemandes = async () => {
+    const data = await fetchDemandes();
+    setDemandes(data);
+  };
+
+  const loadExpertsData = async () => {
+    const data = await fetchExperts();
+    setExperts(data);
+  };
 
   const loadRemoteData = async () => {
     await loadPricing();
@@ -165,10 +190,9 @@ export default function Admin() {
     }
   };
 
-  const approuverDemande = (demande: DemandeExpert) => {
+  const approuverDemande = async (demande: ExpertDemandeRow) => {
     const code = generateExpertCode();
-    const newExpert: Expert = {
-      id: demande.id,
+    const newId = await insertExpert({
       nom: demande.nom,
       pays: demande.pays,
       whatsapp: demande.whatsapp,
@@ -179,43 +203,47 @@ export default function Admin() {
       photo: `https://i.pravatar.cc/150?img=${Math.floor(Math.random() * 70) + 1}`,
       status: 'approved',
       travaux: [],
-      prixJour: '',
+      prix_jour: null,
       code,
-      createdAt: demande.createdAt,
-    };
-    const updatedExperts = [...experts, newExpert];
-    saveExperts(updatedExperts);
-    setExperts(updatedExperts);
-
-    const updatedDemandes = demandes.map((d) =>
-      d.id === demande.id ? { ...d, status: 'approved' as const } : d
-    );
-    saveDemandes(updatedDemandes);
-    setDemandes(updatedDemandes);
-    showToast(`Expert approuvé! Code: ${code}`, 'success');
+      is_default: false,
+    });
+    if (newId) {
+      await updateDemandeStatus(demande.id, 'approved');
+      showToast(`Expert approuvé! Code: ${code}`, 'success');
+    } else {
+      showToast('Erreur lors de l\'approbation', 'error');
+    }
   };
 
-  const refuserDemande = (id: string) => {
-    const updated = demandes.map((d) => (d.id === id ? { ...d, status: 'rejected' as const } : d));
-    saveDemandes(updated);
-    setDemandes(updated);
-    showToast('Demande refusée', 'info');
+  const refuserDemande = async (id: string) => {
+    const ok = await updateDemandeStatus(id, 'rejected');
+    if (ok) {
+      showToast('Demande refusée', 'info');
+    } else {
+      showToast('Erreur lors du refus', 'error');
+    }
   };
 
-  const supprimerExpert = (id: string) => {
-    const updated = experts.filter((e) => e.id !== id);
-    saveExperts(updated);
-    setExperts(updated);
-    showToast('Expert supprimé', 'info');
+  const supprimerExpert = async (id: string) => {
+    const ok = await deleteExpert(id);
+    if (ok) {
+      showToast('Expert supprimé', 'info');
+    } else {
+      showToast('Erreur lors de la suppression', 'error');
+    }
   };
 
-  const sauverExpert = () => {
+  const sauverExpert = async () => {
     if (!editingExpert) return;
-    const updated = experts.map((e) => (e.id === editingExpert.id ? editingExpert : e));
-    saveExperts(updated);
-    setExperts(updated);
-    setEditingExpert(null);
-    showToast('Expert modifié', 'success');
+    const { id, created_at, ...updates } = editingExpert;
+    void created_at;
+    const ok = await updateExpert(id, updates);
+    if (ok) {
+      setEditingExpert(null);
+      showToast('Expert modifié', 'success');
+    } else {
+      showToast('Erreur lors de la modification', 'error');
+    }
   };
 
   const sauverSettings = () => {
@@ -377,7 +405,7 @@ export default function Admin() {
                       <p className="text-xs text-white/60">{demande.ville}, {demande.pays}</p>
                       <p className="text-xs text-white/60">WhatsApp: {demande.whatsapp}</p>
                       {demande.bio && <p className="text-xs text-white/50 mt-1">{demande.bio}</p>}
-                      {demande.cvName && <p className="text-xs text-white/40 mt-1">CV: {demande.cvName}</p>}
+                      {demande.cv_name && <p className="text-xs text-white/40 mt-1">CV: {demande.cv_name}</p>}
                     </div>
                     <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
                       demande.status === 'pending' ? 'bg-orange-500/30 text-orange-300' :

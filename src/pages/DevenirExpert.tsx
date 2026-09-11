@@ -1,10 +1,9 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Upload, Send, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { Upload, Send, AlertTriangle, ArrowLeft, Loader2 } from 'lucide-react';
 import Logo from '@/components/Logo';
-import { saveDemandes, getDemandes } from '@/lib/storage';
+import { insertDemande } from '@/lib/supabase';
 import { showToast } from '@/lib/toast';
-import type { DemandeExpert } from '@/types';
 
 export default function DevenirExpert() {
   const navigate = useNavigate();
@@ -20,6 +19,7 @@ export default function DevenirExpert() {
   });
   const [cvName, setCvName] = useState('');
   const [cvData, setCvData] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -38,23 +38,31 @@ export default function DevenirExpert() {
     reader.readAsDataURL(file);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const demandes = getDemandes();
-    const nouvelleDemande: DemandeExpert = {
-      id: Date.now().toString(),
-      ...form,
-      cvName,
-      cvData,
-      status: 'pending',
-      createdAt: Date.now(),
-    };
-    saveDemandes([nouvelleDemande, ...demandes]);
-    showToast('Demande envoyée avec succès! Vous serez contacté bientôt.', 'success');
-    setForm({ nom: '', pays: '', whatsapp: '', ville: '', fonction: '', adresse: '', bio: '' });
-    setCvName('');
-    setCvData('');
-    if (fileRef.current) fileRef.current.value = '';
+    if (submitting) return;
+    setSubmitting(true);
+    const ok = await insertDemande({
+      nom: form.nom,
+      pays: form.pays,
+      whatsapp: form.whatsapp,
+      ville: form.ville,
+      fonction: form.fonction,
+      adresse: form.adresse,
+      bio: form.bio,
+      cv_name: cvName || null,
+      cv_data: cvData || null,
+    });
+    setSubmitting(false);
+    if (ok) {
+      showToast('Demande envoyée avec succès! Vous serez contacté bientôt.', 'success');
+      setForm({ nom: '', pays: '', whatsapp: '', ville: '', fonction: '', adresse: '', bio: '' });
+      setCvName('');
+      setCvData('');
+      if (fileRef.current) fileRef.current.value = '';
+    } else {
+      showToast('Erreur lors de l\'envoi. Vérifiez votre connexion internet.', 'error');
+    }
   };
 
   const inputClass = 'w-full bg-white/10 border border-white/20 rounded-2xl px-4 py-3 text-white placeholder-white/40 focus:outline-none focus:border-[#F97316] transition-colors';
@@ -154,10 +162,11 @@ export default function DevenirExpert() {
           {/* Bouton envoyer */}
           <button
             type="submit"
-            className="w-full bg-green-600 text-white font-bold rounded-2xl py-3.5 flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform hover:bg-green-700"
+            disabled={submitting}
+            className="w-full bg-green-600 text-white font-bold rounded-2xl py-3.5 flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform hover:bg-green-700 disabled:opacity-50"
           >
-            <Send size={20} />
-            Envoyer
+            {submitting ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
+            {submitting ? 'Envoi en cours...' : 'Envoyer'}
           </button>
         </form>
       </div>

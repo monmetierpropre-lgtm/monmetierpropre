@@ -1,9 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, MessageCircle, X, MapPin, Briefcase, User, Star } from 'lucide-react';
+import { Search, MessageCircle, X, MapPin, Briefcase, User } from 'lucide-react';
 import Logo from '@/components/Logo';
-import { getExperts } from '@/lib/storage';
-import type { Expert } from '@/types';
+import { fetchExperts, supabase, type ExpertRow } from '@/lib/supabase';
 
 const statusConfig: Record<string, { label: string; bg: string; dot: string }> = {
   approved: { label: 'Disponible', bg: 'bg-green-100 text-green-700', dot: 'bg-green-500' },
@@ -11,11 +10,34 @@ const statusConfig: Record<string, { label: string; bg: string; dot: string }> =
   rejected: { label: 'Indisponible', bg: 'bg-red-100 text-red-700', dot: 'bg-red-500' },
 };
 
+type DisplayExpert = ExpertRow;
+
 export default function Experts() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
-  const [selected, setSelected] = useState<Expert | null>(null);
-  const experts = useMemo(() => getExperts(), []);
+  const [selected, setSelected] = useState<DisplayExpert | null>(null);
+  const [experts, setExperts] = useState<DisplayExpert[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    fetchExperts().then((data) => {
+      if (mounted) setExperts(data);
+    });
+    const channel = supabase
+      .channel('experts_public')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'experts' },
+        () => {
+          if (mounted) fetchExperts().then(setExperts);
+        }
+      )
+      .subscribe();
+    return () => {
+      mounted = false;
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const filtered = experts.filter(
     (e) =>
@@ -24,8 +46,8 @@ export default function Experts() {
       e.ville.toLowerCase().includes(search.toLowerCase())
   );
 
-  const getWhatsAppLink = (expert: Expert) => {
-    if (expert.isDefault) return 'https://wa.me/243813971187';
+  const getWhatsAppLink = (expert: DisplayExpert) => {
+    if (expert.is_default) return 'https://wa.me/243813971187';
     return `https://wa.me/${expert.whatsapp}`;
   };
 
@@ -79,8 +101,8 @@ export default function Experts() {
                       <MapPin size={12} />
                       <span>{expert.ville}, {expert.pays}</span>
                     </div>
-                    {expert.prixJour && (
-                      <p className="text-xs text-white/50 mt-1">{expert.prixJour} / jour</p>
+                    {expert.prix_jour && (
+                      <p className="text-xs text-white/50 mt-1">{expert.prix_jour} / jour</p>
                     )}
                   </div>
                 </div>
@@ -153,7 +175,7 @@ export default function Experts() {
               </div>
               <div className="flex items-center gap-2 text-white/80">
                 <Briefcase size={16} className="text-[#F97316]" />
-                <span>{selected.prixJour || 'Prix non défini'} / jour</span>
+                <span>{selected.prix_jour || 'Prix non défini'} / jour</span>
               </div>
               {selected.bio && (
                 <div className="pt-2">

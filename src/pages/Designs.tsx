@@ -15,9 +15,9 @@ import { showToast } from '@/lib/toast';
    TYPES
    ============================================================ */
 type Category =
-  | 'all' | 'cv-standard' | 'cv-pro' | 'lettres' | 'cartes' | 'affiches';
+  | 'all' | 'cv-standard' | 'cv-pro' | 'lettres' | 'cartes' | 'affiches' | 'devis';
 
-type LayoutType = 'cv-standard' | 'cv-pro' | 'cv-docx' | 'letter' | 'card' | 'poster';
+type LayoutType = 'cv-standard' | 'cv-pro' | 'cv-docx' | 'letter' | 'card' | 'poster' | 'devis';
 
 interface FieldDef {
   key: string;
@@ -132,6 +132,14 @@ const posterFields: FieldDef[] = [
   { key: 'heure', label: 'Heure', type: 'text', placeholder: '19h00', section: 'Détails' },
   { key: 'lieu', label: 'Lieu', type: 'text', placeholder: 'Temple Central, Lubumbashi', section: 'Détails' },
   { key: 'contact', label: 'Contact', type: 'text', placeholder: '+243 813 971 187', section: 'Détails' },
+];
+
+const devisFields: FieldDef[] = [
+  { key: 'nomClient', label: 'Nom du client', type: 'text', placeholder: 'Jean Mukendi', section: 'Client' },
+  { key: 'date', label: 'Date', type: 'text', placeholder: '15/09/2024', section: 'Client' },
+  { key: 'designation', label: 'Désignation des travaux', type: 'textarea', placeholder: 'Carrelage salon 30m² - Pose faïence cuisine - Carrelage terrasse', section: 'Travaux' },
+  { key: 'quantite', label: 'Quantité', type: 'text', placeholder: '30m² / 15m² / 20m²', section: 'Travaux' },
+  { key: 'pu', label: 'Prix Unitaire', type: 'text', placeholder: '15$ / 20$ / 12$', section: 'Travaux' },
 ];
 
 /* ============================================================
@@ -311,8 +319,35 @@ const afficheTemplates: Template[] = [
   },
 ];
 
+const devisTemplates: Template[] = [
+  {
+    id: 'devis-carreleur', title: 'Devis Carreleur', category: 'devis', editable: true, isFree: true,
+    badgeColor: 'bg-green-600', badgeText: 'GRATUIT',
+    preview: <DevisPreview variant="carreleur" />,
+    content: { layout: 'devis', fields: devisFields, defaults: {}, theme: { bg: '#ffffff', accent: '#16A34A', text: '#1a1a1a' } },
+  },
+  {
+    id: 'devis-plafonnier', title: 'Devis Plafonnier', category: 'devis', editable: true, isFree: true,
+    badgeColor: 'bg-orange-500', badgeText: 'GRATUIT',
+    preview: <DevisPreview variant="plafonnier" />,
+    content: { layout: 'devis', fields: devisFields, defaults: {}, theme: { bg: '#ffffff', accent: '#F97316', text: '#1a1a1a' } },
+  },
+  {
+    id: 'devis-plombier', title: 'Devis Plombier', category: 'devis', editable: true, isFree: true,
+    badgeColor: 'bg-blue-600', badgeText: 'GRATUIT',
+    preview: <DevisPreview variant="plombier" />,
+    content: { layout: 'devis', fields: devisFields, defaults: {}, theme: { bg: '#ffffff', accent: '#0B2E8C', text: '#1a1a1a' } },
+  },
+  {
+    id: 'devis-macon', title: 'Devis Maçon', category: 'devis', editable: true, isFree: true,
+    badgeColor: 'bg-gray-700', badgeText: 'GRATUIT',
+    preview: <DevisPreview variant="macon" />,
+    content: { layout: 'devis', fields: devisFields, defaults: {}, theme: { bg: '#ffffff', accent: '#78716C', text: '#1a1a1a' } },
+  },
+];
+
 const allTemplates: Template[] = [
-  ...cvTemplates, ...lettreTemplates, ...carteTemplates, ...afficheTemplates,
+  ...cvTemplates, ...lettreTemplates, ...carteTemplates, ...afficheTemplates, ...devisTemplates,
 ];
 
 /* ============================================================
@@ -435,6 +470,35 @@ function CartePreview({ variant }: { variant: string }) {
   );
 }
 
+function DevisPreview({ variant }: { variant: string }) {
+  const accents: Record<string, string> = {
+    carreleur: '#16A34A', plafonnier: '#F97316', plombier: '#0B2E8C', macon: '#78716C',
+  };
+  const accent = accents[variant] || '#0B2E8C';
+  return (
+    <div className="w-full aspect-[210/297] bg-white rounded-lg overflow-hidden p-3 shadow-sm flex flex-col gap-1">
+      <div className="h-2 w-20 rounded" style={{ background: accent }} />
+      <div className="h-1.5 w-16 bg-gray-300 rounded mt-1" />
+      <div className="h-1 w-12 bg-gray-200 rounded" />
+      <div className="h-px w-full bg-gray-200 my-1" />
+      <div className="h-1 w-14 rounded" style={{ background: accent }} />
+      <div className="h-1 w-full bg-gray-200 rounded" />
+      <div className="h-1 w-4/5 bg-gray-200 rounded" />
+      <div className="h-1 w-full bg-gray-200 rounded" />
+      <div className="h-1 w-3/5 bg-gray-200 rounded" />
+      <div className="h-1.5 w-12 rounded mt-1" style={{ background: accent }} />
+      <div className="flex justify-between mt-2">
+        <div className="h-1 w-10 bg-gray-200 rounded" />
+        <div className="h-1 w-8 bg-gray-200 rounded" />
+      </div>
+      <div className="flex justify-between mt-1">
+        <div className="h-1 w-12 bg-gray-200 rounded" />
+        <div className="h-1 w-6 bg-gray-200 rounded" />
+      </div>
+    </div>
+  );
+}
+
 function AffichePreview({ variant }: { variant: string }) {
   const themes: Record<string, { bg: string; accent: string }> = {
     croisade: { bg: '#1E345D', accent: '#F97316' },
@@ -466,6 +530,7 @@ const filters: { id: Category; label: string; icon: typeof FileText }[] = [
   { id: 'lettres', label: 'Lettres', icon: Mail },
   { id: 'cartes', label: 'Cartes Visite', icon: CreditCard },
   { id: 'affiches', label: 'Affiches', icon: Church },
+  { id: 'devis', label: 'Devis', icon: FileText },
 ];
 
 /* ============================================================
@@ -742,6 +807,7 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
     if (layout === 'card') return 'Carte_Visite';
     if (layout === 'letter') return 'Lettre';
     if (layout === 'poster') return 'Affiche';
+    if (layout === 'devis') return 'Devis';
     return 'CV';
   };
 
@@ -1163,6 +1229,97 @@ function EditorModal({ template, onClose }: { template: Template; onClose: () =>
               <p className="font-bold" style={{ fontSize: '16px' }}>{values.contact}</p>
             </div>
           )}
+        </div>
+      );
+    }
+
+    /* --- DEVIS --- */
+    if (template.content?.layout === 'devis') {
+      const accent = theme?.accent || '#0B2E8C';
+      const designations = (values.designation || '').split('\n').filter((l) => l.trim());
+      const quantites = (values.quantite || '').split('\n');
+      const pus = (values.pu || '').split('\n');
+      const rows = designations.map((desc, i) => ({
+        designation: desc,
+        quantite: quantites[i]?.trim() || '',
+        pu: pus[i]?.trim() || '',
+        total: (parseFloat(quantites[i]?.trim() || '0') * parseFloat(pus[i]?.replace(/[^\d.]/g, '') || '0')).toString(),
+      }));
+      const totalGeneral = rows.reduce((sum, r) => sum + parseFloat(r.total || '0'), 0);
+
+      return (
+        <div ref={previewRef} className="bg-white mx-auto overflow-hidden shadow-lg" style={{ width: '794px', minHeight: '1123px', color: textColor, fontFamily: 'Inter, sans-serif' }}>
+          <div className="h-3 w-full" style={{ background: accent }} />
+          <div className="p-10">
+            <div className="flex justify-between items-start mb-8">
+              <div>
+                <h1 className="font-black" style={{ fontSize: '32px', color: accent }}>DEVIS</h1>
+                <p className="text-gray-500 font-semibold mt-1" style={{ fontSize: '14px' }}>{template.title.replace('Devis ', '')}</p>
+              </div>
+              <div className="text-right">
+                <p className="font-bold" style={{ fontSize: '14px' }}>Mon Métier Propre</p>
+                <p className="text-gray-500" style={{ fontSize: '11px' }}>contact@monmetierpropre.site</p>
+                <p className="text-gray-500" style={{ fontSize: '11px' }}>+243 813 971 187</p>
+              </div>
+            </div>
+
+            <div className="flex justify-between mb-6 pb-4 border-b-2" style={{ borderColor: accent }}>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Client</p>
+                <p className="font-bold" style={{ fontSize: '16px' }}>{values.nomClient || 'Nom du client'}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Date</p>
+                <p className="font-bold" style={{ fontSize: '16px' }}>{values.date || '...'}</p>
+              </div>
+            </div>
+
+            <table className="w-full" style={{ fontSize: '12px' }}>
+              <thead>
+                <tr style={{ background: accent + '10' }}>
+                  <th className="text-left p-2 font-bold" style={{ color: accent }}>Désignation</th>
+                  <th className="text-center p-2 font-bold" style={{ color: accent, width: '80px' }}>Qté</th>
+                  <th className="text-right p-2 font-bold" style={{ color: accent, width: '100px' }}>P.U.</th>
+                  <th className="text-right p-2 font-bold" style={{ color: accent, width: '100px' }}>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, i) => (
+                  <tr key={i} className="border-b border-gray-100">
+                    <td className="p-2 text-gray-700">{row.designation}</td>
+                    <td className="p-2 text-center text-gray-700">{row.quantite}</td>
+                    <td className="p-2 text-right text-gray-700">{row.pu}</td>
+                    <td className="p-2 text-right font-semibold text-gray-800">{row.total}$</td>
+                  </tr>
+                ))}
+                {rows.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="p-4 text-center text-gray-400">Ajoutez des désignations...</td>
+                  </tr>
+                )}
+              </tbody>
+              <tfoot>
+                <tr style={{ background: accent + '15' }}>
+                  <td colSpan={3} className="p-3 text-right font-black" style={{ color: accent, fontSize: '14px' }}>TOTAL GÉNÉRAL</td>
+                  <td className="p-3 text-right font-black" style={{ color: accent, fontSize: '16px' }}>{totalGeneral}$</td>
+                </tr>
+              </tfoot>
+            </table>
+
+            <div className="mt-12 pt-6 border-t border-gray-200">
+              <p className="text-[10px] text-gray-400">Devis valable 30 jours. Acceptation du client :</p>
+              <div className="flex justify-between mt-6">
+                <div>
+                  <p className="text-[10px] text-gray-400 mb-8">Signature du prestataire</p>
+                  <div className="w-40 h-px bg-gray-300" />
+                </div>
+                <div>
+                  <p className="text-[10px] text-gray-400 mb-8">Signature du client</p>
+                  <div className="w-40 h-px bg-gray-300" />
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       );
     }

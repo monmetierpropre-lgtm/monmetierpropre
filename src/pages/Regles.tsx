@@ -81,7 +81,7 @@ export default function Regles() {
 
         <div className="text-center text-xs text-white/40 pt-4">
           <p>Mon Métier - Connecter Clients et techniciens ou Experts</p>
-          <p className="mt-1">Version 1.0.26</p>
+          <p className="mt-1">Version 1.0.27</p>
         </div>
       </div>
     </div>
